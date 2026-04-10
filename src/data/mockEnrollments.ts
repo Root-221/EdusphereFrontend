@@ -1,0 +1,236 @@
+import { Enrollment, EnrollmentPeriod, EnrollmentFee, ClassFeePackage, EnrollmentStudentInfo, EnrollmentParentInfo, EnrollmentClassAssignment, EnrollmentPayment, PaymentMethod } from '@/types/enrollment';
+
+export const mockEnrollmentPeriods: EnrollmentPeriod[] = [
+  {
+    id: '1',
+    name: 'Inscription 2025-2026',
+    type: 'new',
+    academicYear: '2025-2026',
+    startDate: '2025-03-01',
+    endDate: '2025-09-30',
+    isActive: true,
+    maxEnrollments: 200,
+    description: "Période principale d'inscription pour les nouveaux élèves de l'année scolaire 2025-2026. Dossiers complets exigés.",
+  },
+  {
+    id: '2',
+    name: 'Réinscription 2025-2026',
+    type: 're_enrollment',
+    academicYear: '2025-2026',
+    startDate: '2025-04-01',
+    endDate: '2025-07-31',
+    isActive: true,
+    maxEnrollments: 350,
+    description: "Période de réinscription réservée aux élèves actuellement inscrits dans l'établissement souhaitant continuer l'année suivante.",
+  },
+  {
+    id: '3',
+    name: 'Inscription tardive 2025-2026',
+    type: 'new',
+    academicYear: '2025-2026',
+    startDate: '2025-10-01',
+    endDate: '2025-11-30',
+    isActive: false,
+    maxEnrollments: 50,
+    description: "Période réservée aux inscriptions tardives pour des cas exceptionnels après la rentrée scolaire.",
+  },
+  {
+    id: '4',
+    name: 'Réinscription anticipée 2026-2027',
+    type: 're_enrollment',
+    academicYear: '2026-2027',
+    startDate: '2026-02-01',
+    endDate: '2026-06-30',
+    isActive: false,
+    maxEnrollments: 400,
+    description: "Ouverture anticipée des réinscriptions pour l'année 2026-2027. Priorité aux familles ayant plusieurs enfants.",
+  },
+];
+
+export const mockClassesForEnrollment = [
+  { id: 'c1', name: 'PS', capacity: 30, currentStudents: 25 },
+  { id: 'c2', name: 'MS', capacity: 30, currentStudents: 28 },
+  { id: 'c3', name: 'GS', capacity: 30, currentStudents: 30 },
+  { id: 'c4', name: 'CP', capacity: 35, currentStudents: 32 },
+  { id: 'c5', name: 'CE1', capacity: 35, currentStudents: 30 },
+  { id: 'c6', name: 'CE2', capacity: 35, currentStudents: 28 },
+  { id: 'c7', name: 'CM1', capacity: 35, currentStudents: 33 },
+  { id: 'c8', name: 'CM2', capacity: 35, currentStudents: 31 },
+  { id: 'c9', name: '6ème', capacity: 40, currentStudents: 38 },
+  { id: 'c10', name: '5ème', capacity: 40, currentStudents: 36 },
+  { id: 'c11', name: '4ème', capacity: 40, currentStudents: 35 },
+  { id: 'c12', name: '3ème', capacity: 40, currentStudents: 37 },
+  { id: 'c13', name: 'Seconde S', capacity: 35, currentStudents: 30 },
+  { id: 'c14', name: 'Première S', capacity: 35, currentStudents: 32 },
+  { id: 'c15', name: 'Terminale S', capacity: 35, currentStudents: 28 },
+];
+
+export const mockSubjectsForEnrollment = [
+  { id: 's1', name: 'Français' },
+  { id: 's2', name: 'Mathématiques' },
+  { id: 's3', name: 'Anglais' },
+  { id: 's4', name: 'Histoire-Géographie' },
+  { id: 's5', name: 'Sciences Physiques' },
+  { id: 's6', name: 'SVT' },
+];
+
+export const mockEnrollmentFees: EnrollmentFee[] = [
+  { id: 'f1', name: 'Frais d\'inscription', amount: 25000, isRequired: true, category: 'registration', academicYear: '2025-2026' },
+  { id: 'f2', name: 'Scolarité Trimestre 1', amount: 100000, isRequired: true, category: 'tuition', academicYear: '2025-2026' },
+  { id: 'f3', name: 'Scolarité Trimestre 2', amount: 100000, isRequired: true, category: 'tuition', academicYear: '2025-2026' },
+  { id: 'f4', name: 'Scolarité Trimestre 3', amount: 100000, isRequired: true, category: 'tuition', academicYear: '2025-2026' },
+  { id: 'f5', name: ' Fournitures scolaires', amount: 35000, isRequired: true, category: 'material', academicYear: '2025-2026' },
+  { id: 'f6', name: 'Transport (aller-retour)', amount: 45000, isRequired: false, category: 'transport', academicYear: '2025-2026' },
+  { id: 'f7', name: 'Cantine', amount: 30000, isRequired: false, category: 'canteen', academicYear: '2025-2026' },
+];
+
+export const mockClassFeePackages: ClassFeePackage[] = mockClassesForEnrollment.map(cls => {
+  const baseFees = mockEnrollmentFees.filter(f => f.isRequired);
+  const totalAmount = baseFees.reduce((sum, f) => sum + f.amount, 0);
+  
+  return {
+    id: `package-${cls.id}`,
+    classId: cls.id,
+    className: cls.name,
+    fees: baseFees,
+    totalAmount,
+  };
+});
+
+export const mockExistingStudents = [
+  { id: 'st-1', firstName: 'Moussa', name: 'Sall', email: 'moussa.sall@email.sn', phone: '+221 77 111 2222', dateOfBirth: '2010-05-15', gender: 'male' as const, address: 'Dakar, Plateau', parentFirstName: 'Cheikh', parentLastName: 'Sall', parentPhone: '+221 77 333 4444', parentEmail: 'cheikh.sall@email.sn', class: '5ème' },
+  { id: 'st-2', firstName: 'Aïda', name: 'Diop', email: 'aida.diop@email.sn', phone: '+221 77 555 6666', dateOfBirth: '2011-03-22', gender: 'female' as const, address: 'Dakar, Point E', parentFirstName: 'Moussa', parentLastName: 'Diop', parentPhone: '+221 77 777 8888', parentEmail: 'moussa.diop@email.sn', class: '4ème' },
+  { id: 'st-3', firstName: 'Oumar', name: 'Fall', email: 'oumar.fall@email.sn', phone: '+221 77 999 0000', dateOfBirth: '2012-08-10', gender: 'male' as const, address: 'Dakar, Sacré Coeur', parentFirstName: 'Mamadou', parentLastName: 'Fall', parentPhone: '+221 77 123 4567', parentEmail: 'mamadou.fall@email.sn', class: '3ème' },
+];
+
+export const mockEnrollments: Enrollment[] = [
+  {
+    id: 'e1',
+    enrollmentNumber: 'INS-2025-0001',
+    type: 'new',
+    status: 'confirmed',
+    academicYear: '2025-2026',
+    periodId: '1',
+    createdAt: '15/04/2025',
+    updatedAt: '18/04/2025',
+    confirmedAt: '18/04/2025',
+    administrativeStatus: 'completed',
+    studentInfo: {
+      firstName: 'Mariama',
+      lastName: 'Diallo',
+      email: 'mariama.diallo@email.sn',
+      phone: '+221 77 234 5678',
+      dateOfBirth: '2013-02-28',
+      gender: 'female',
+      address: 'Dakar, Almadies',
+    },
+    parentInfo: {
+      firstName: 'Boubacar',
+      lastName: 'Diallo',
+      email: 'boubacar.diallo@email.sn',
+      phone: '+221 77 345 6789',
+      profession: 'Ingénieur',
+      isGuardian: true,
+    },
+    pedagogicalStatus: 'completed',
+    classAssignment: {
+      classId: 'c10',
+      className: '5ème',
+      capacity: 40,
+      currentStudents: 37,
+    },
+    payment: {
+      id: 'p1',
+      amount: 260000,
+      method: 'wave' as PaymentMethod,
+      status: 'completed',
+      transactionId: 'WV-20250415-001',
+      paymentDate: '18/04/2025',
+    },
+  },
+  {
+    id: 'e2',
+    enrollmentNumber: 'INS-2025-0002',
+    type: 'new',
+    status: 'pending_payment',
+    academicYear: '2025-2026',
+    periodId: '1',
+    createdAt: '20/04/2025',
+    updatedAt: '20/04/2025',
+    administrativeStatus: 'completed',
+    studentInfo: {
+      firstName: 'Ibrahima',
+      lastName: 'Sy',
+      email: 'ibrahima.sy@email.sn',
+      phone: '+221 77 456 7890',
+      dateOfBirth: '2012-11-15',
+      gender: 'male',
+      address: 'Dakar, Fann',
+    },
+    parentInfo: {
+      firstName: 'Ousmane',
+      lastName: 'Sy',
+      email: 'ousmane.sy@email.sn',
+      phone: '+221 77 567 8901',
+      profession: 'Commerçant',
+      isGuardian: true,
+    },
+    pedagogicalStatus: 'completed',
+    classAssignment: {
+      classId: 'c13',
+      className: 'Seconde S',
+      capacity: 35,
+      currentStudents: 31,
+    },
+    payment: {
+      id: 'p2',
+      amount: 260000,
+      method: 'cash' as PaymentMethod,
+      status: 'pending',
+    },
+  },
+  {
+    id: 'e3',
+    enrollmentNumber: 'REINS-2025-0001',
+    type: 're_enrollment',
+    status: 'paid',
+    academicYear: '2025-2026',
+    periodId: '2',
+    createdAt: '10/04/2025',
+    updatedAt: '12/04/2025',
+    administrativeStatus: 'completed',
+    studentInfo: {
+      firstName: 'Fatou',
+      lastName: 'Ndiaye',
+      email: 'fatou.ndiaye@email.sn',
+      phone: '+221 77 678 9012',
+      dateOfBirth: '2011-06-20',
+      gender: 'female',
+      address: 'Dakar, Mermoz',
+    },
+    parentInfo: {
+      firstName: 'Ibrahima',
+      lastName: 'Ndiaye',
+      email: 'ibrahima.ndiaye@email.sn',
+      phone: '+221 77 789 0123',
+      profession: 'Avocat',
+      isGuardian: true,
+    },
+    pedagogicalStatus: 'completed',
+    classAssignment: {
+      classId: 'c11',
+      className: '4ème',
+      capacity: 40,
+      currentStudents: 36,
+    },
+    payment: {
+      id: 'p3',
+      amount: 260000,
+      method: 'orange_money' as PaymentMethod,
+      status: 'completed',
+      transactionId: 'OM-20240412-045',
+      paymentDate: '12/04/2025',
+    },
+    existingStudentId: 'st-old-1',
+  },
+];

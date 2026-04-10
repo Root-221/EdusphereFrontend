@@ -1,0 +1,5 @@
+# EduSphere - Robots.txt
+# Plateforme de gestion scolaire
+
+User-agent: *
+Allow: /
