@@ -52,7 +52,9 @@ export default function Classes() {
   const queryClient = useQueryClient();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isSubjectsDialogOpen, setIsSubjectsDialogOpen] = useState(false);
+  const [isTeachersDialogOpen, setIsTeachersDialogOpen] = useState(false);
   const [selectedClass, setSelectedClass] = useState<SchoolClass | null>(null);
+  const [selectedClassForTeachers, setSelectedClassForTeachers] = useState<SchoolClass | null>(null);
   const [classToDelete, setClassToDelete] = useState<SchoolClass | null>(null);
   const [formData, setFormData] = useState<ClassFormState>(createDefaultForm);
   const [selectedSubjectIds, setSelectedSubjectIds] = useState<string[]>([]);
@@ -87,6 +89,13 @@ export default function Classes() {
     retry: false,
   });
 
+  const classTeachersQuery = useQuery({
+    queryKey: ['school-admin', 'class-teachers', selectedClassForTeachers?.id],
+    queryFn: () => academicApi.fetchClassTeachers(selectedClassForTeachers!.id),
+    enabled: Boolean(selectedClassForTeachers),
+    retry: false,
+  });
+
   const subjectsQuery = useQuery({
     queryKey: ['school-admin', 'subjects'],
     queryFn: academicApi.fetchSubjects,
@@ -116,6 +125,7 @@ export default function Classes() {
   const levels = levelsQuery.data ?? [];
   const teachers = teachersQuery.data ?? [];
   const subjects = subjectsQuery.data ?? [];
+  const classTeachers = classTeachersQuery.data ?? [];
   const activeAcademicYearId = resolveAcademicYearSelection(CURRENT_ACADEMIC_SELECTION, academicYears);
   const activeLevelId = levels.find((level) => level.status === 'active')?.id ?? levels[0]?.id ?? '';
 
@@ -243,6 +253,11 @@ export default function Classes() {
     setIsSubjectsDialogOpen(true);
   };
 
+  const openTeachersDialog = (schoolClass: SchoolClass) => {
+    setSelectedClassForTeachers(schoolClass);
+    setIsTeachersDialogOpen(true);
+  };
+
   const handleSubmit = () => {
     if (!formData.levelId) {
       return;
@@ -332,6 +347,16 @@ export default function Classes() {
         </Badge>
       ),
     },
+    {
+      key: 'teachers',
+      label: 'Profs',
+      render: (schoolClass) => (
+        <Button variant="outline" size="sm" className="gap-1" onClick={() => openTeachersDialog(schoolClass)}>
+          <Users className="h-3 w-3" />
+          Voir
+        </Button>
+      ),
+    },
   ];
 
   const filterOptions = [
@@ -411,6 +436,10 @@ export default function Classes() {
         <Button variant="outline" size="sm" className="gap-1 flex-1" onClick={() => openSubjectsDialog(schoolClass)}>
           <Link className="h-3 w-3" />
           Matières
+        </Button>
+        <Button variant="outline" size="sm" className="gap-1 flex-1" onClick={() => openTeachersDialog(schoolClass)}>
+          <Users className="h-3 w-3" />
+          Profs
         </Button>
         <Button variant="outline" size="sm" className="gap-1 flex-1" onClick={() => openEditDialog(schoolClass)}>
           <Edit className="h-3 w-3" />
@@ -698,6 +727,51 @@ export default function Classes() {
             </Button>
             <Button onClick={handleSaveSubjects} disabled={selectedSubjectIds.length === 0}>
               Enregistrer les matières
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={isTeachersDialogOpen}
+        onOpenChange={(open) => {
+          setIsTeachersDialogOpen(open);
+          if (!open) {
+            setSelectedClassForTeachers(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle>Enseignants de {selectedClassForTeachers?.name}</DialogTitle>
+            <DialogDescription>Liste des professeurs associés à cette classe.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 py-4">
+            {classTeachersQuery.isLoading ? (
+              <p className="text-sm text-muted-foreground">Chargement des enseignants...</p>
+            ) : classTeachers.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Aucun enseignant assigné à cette classe.</p>
+            ) : (
+              classTeachers.map((teacher: Teacher) => (
+                <div key={teacher.id} className="flex items-center justify-between rounded-lg border p-3">
+                  <div>
+                    <p className="font-medium">
+                      {teacher.firstName} {teacher.name}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {teacher.subject || 'Aucune matière principale'}
+                    </p>
+                  </div>
+                  <Badge variant={teacher.status === 'active' ? 'secondary' : 'outline'}>
+                    {teacher.status === 'active' ? 'Actif' : 'Inactif'}
+                  </Badge>
+                </div>
+              ))
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsTeachersDialogOpen(false)}>
+              Fermer
             </Button>
           </DialogFooter>
         </DialogContent>

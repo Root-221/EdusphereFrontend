@@ -4,7 +4,7 @@ import { BookOpen, Edit, Mail, Plus, Phone, School, Trash2, Users } from 'lucide
 import { useToast } from '@/hooks/use-toast';
 import { academicApi } from '@/services/academic';
 import { usersApi, type CreateTeacherPayload, type UpdateTeacherPayload } from '@/services/users';
-import type { Subject } from '@/types/academic';
+import type { Level, SchoolClass, Subject } from '@/types/academic';
 import type { Teacher } from '@/types/users';
 import { getApiErrorMessage } from '@/lib/api-errors';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -14,6 +14,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { DataList, type Column } from '@/components/ui/data-list';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -24,6 +25,7 @@ type TeacherFormState = {
   email: string;
   phone: string;
   subjectId: string;
+  classIds: string[];
   status: Teacher['status'];
 };
 
@@ -33,6 +35,7 @@ const createDefaultForm = (): TeacherFormState => ({
   email: '',
   phone: '',
   subjectId: '',
+  classIds: [],
   status: 'active',
 });
 
@@ -54,6 +57,18 @@ export default function Teachers() {
     retry: false,
   });
 
+  const classesQuery = useQuery({
+    queryKey: ['school-admin', 'classes'],
+    queryFn: () => academicApi.fetchClasses(),
+    retry: false,
+  });
+
+  const levelsQuery = useQuery({
+    queryKey: ['school-admin', 'levels'],
+    queryFn: () => academicApi.fetchLevels(),
+    retry: false,
+  });
+
   const subjectsQuery = useQuery({
     queryKey: ['school-admin', 'subjects'],
     queryFn: academicApi.fetchSubjects,
@@ -64,7 +79,15 @@ export default function Teachers() {
     () =>
       (teachersQuery.data ?? []).map((teacher) => ({
         ...teacher,
-        searchText: [teacher.firstName, teacher.name, teacher.email, teacher.phone, teacher.subject, teacher.status]
+        searchText: [
+          teacher.firstName,
+          teacher.name,
+          teacher.email,
+          teacher.phone,
+          teacher.subject,
+          teacher.status,
+          ...(teacher.classNames ?? []),
+        ]
           .join(' ')
           .toLowerCase(),
       })),
@@ -72,8 +95,48 @@ export default function Teachers() {
   );
 
   const subjects = subjectsQuery.data ?? [];
+  const classes = classesQuery.data ?? [];
+  const levels = levelsQuery.data ?? [];
 
-  const isLoading = teachersQuery.isLoading || subjectsQuery.isLoading;
+  const isLoading =
+    teachersQuery.isLoading || subjectsQuery.isLoading || classesQuery.isLoading || levelsQuery.isLoading;
+
+  const groupedClasses = useMemo(() => {
+    const fallbackLabel = 'Sans niveau';
+    const levelMap = new Map<string, { id: string; name: string; sortOrder: number; classes: SchoolClass[] }>();
+
+    levels.forEach((level: Level, index: number) => {
+      levelMap.set(level.id, {
+        id: level.id,
+        name: level.name,
+        sortOrder: Number.isFinite(level.sortOrder) ? level.sortOrder : index,
+        classes: [],
+      });
+    });
+
+    const unassignedGroup = { id: 'unassigned', name: fallbackLabel, sortOrder: 999, classes: [] as SchoolClass[] };
+
+    classes.forEach((schoolClass: SchoolClass) => {
+      if (schoolClass.levelId && levelMap.has(schoolClass.levelId)) {
+        levelMap.get(schoolClass.levelId)!.classes.push(schoolClass);
+      } else {
+        unassignedGroup.classes.push(schoolClass);
+      }
+    });
+
+    const groups = Array.from(levelMap.values())
+      .filter((group) => group.classes.length > 0)
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+
+    if (unassignedGroup.classes.length > 0) {
+      groups.push(unassignedGroup);
+    }
+
+    return groups.map((group) => ({
+      ...group,
+      classes: group.classes.sort((a, b) => a.name.localeCompare(b.name)),
+    }));
+  }, [classes, levels]);
 
   const invalidateAll = () => {
     void queryClient.invalidateQueries({ queryKey: ['school-admin', 'teachers'] });
@@ -173,6 +236,7 @@ export default function Teachers() {
       email: teacher.email,
       phone: teacher.phone,
       subjectId: teacher.subjectId,
+      classIds: teacher.classIds ?? [],
       status: teacher.status,
     });
     setIsFormDialogOpen(true);
@@ -185,6 +249,7 @@ export default function Teachers() {
       email: formData.email.trim(),
       phone: formData.phone.trim() || undefined,
       subjectId: formData.subjectId || undefined,
+      classIds: formData.classIds.length ? formData.classIds : undefined,
       isActive: formData.status === 'active',
     };
 
@@ -248,6 +313,15 @@ export default function Teachers() {
         </Badge>
       ),
     },
+    {
+      key: 'classes',
+      label: 'Classes',
+      render: (teacher) => (
+        <span className="text-sm text-muted-foreground">
+          {teacher.classNames?.length ? teacher.classNames.join(', ') : 'Non assigné'}
+        </span>
+      ),
+    },
   ];
 
   const filterOptions = [
@@ -301,6 +375,10 @@ export default function Teachers() {
         <span className="flex items-center gap-2 text-muted-foreground">
           <BookOpen className="h-3 w-3" />
           {teacher.subject || 'Aucune matière principale'}
+        </span>
+        <span className="flex items-center gap-2 text-muted-foreground">
+          <School className="h-3 w-3" />
+          {teacher.classNames?.length ? teacher.classNames.join(', ') : 'Aucune classe assignée'}
         </span>
       </div>
       <div className="flex gap-2 pt-2">
@@ -365,7 +443,7 @@ export default function Teachers() {
           <DialogContent className="sm:max-w-[560px]">
             <DialogHeader>
               <DialogTitle>{selectedTeacher ? 'Modifier l’enseignant' : 'Ajouter un nouvel enseignant'}</DialogTitle>
-              <DialogDescription>Renseignez l’identité et la matière principale de l’enseignant.</DialogDescription>
+              <DialogDescription>Renseignez l’identité, la matière principale et les classes associées.</DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-2 gap-4">
@@ -442,6 +520,56 @@ export default function Teachers() {
                       <SelectItem value="inactive">Inactif</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Classes associées (optionnel)</Label>
+                <div className="rounded-lg border border-dashed bg-muted/40 p-3 text-xs text-muted-foreground">
+                  Sélectionnez une ou plusieurs classes. Vous pouvez laisser vide pour créer l’enseignant sans classe.
+                </div>
+                <div className="max-h-56 space-y-4 overflow-y-auto rounded-lg border p-3">
+                  {groupedClasses.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Aucune classe disponible.</p>
+                  ) : (
+                    groupedClasses.map((group) => (
+                      <div key={group.id} className="space-y-2">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          {group.name}
+                        </p>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {group.classes.map((schoolClass) => {
+                            const checked = formData.classIds.includes(schoolClass.id);
+                            return (
+                              <label
+                                key={schoolClass.id}
+                                className={`flex items-center gap-2 rounded-md border p-2 text-sm transition-colors ${
+                                  checked ? 'border-primary bg-primary/5' : 'hover:bg-muted/40'
+                                }`}
+                              >
+                                <Checkbox
+                                  checked={checked}
+                                  onCheckedChange={(value) => {
+                                    if (value) {
+                                      setFormData((current) => ({
+                                        ...current,
+                                        classIds: [...current.classIds, schoolClass.id],
+                                      }));
+                                      return;
+                                    }
+                                    setFormData((current) => ({
+                                      ...current,
+                                      classIds: current.classIds.filter((id) => id !== schoolClass.id),
+                                    }));
+                                  }}
+                                />
+                                <span>{schoolClass.name}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </div>

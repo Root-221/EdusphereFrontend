@@ -12,7 +12,7 @@ import {
   type SessionTokens,
 } from '@/lib/auth-session';
 
-type BackendUser = Pick<User, 'id' | 'email' | 'firstName' | 'lastName' | 'avatar' | 'schoolId' | 'schoolName'> & {
+type BackendUser = Pick<User, 'id' | 'email' | 'firstName' | 'lastName' | 'avatar' | 'schoolId' | 'schoolName' | 'mustChangePassword'> & {
   role?: string;
 };
 
@@ -42,10 +42,12 @@ const buildFrontendUser = (backendUser: BackendUser): User => ({
   avatar: backendUser.avatar,
   schoolId: backendUser.schoolId,
   schoolName: backendUser.schoolName,
+  mustChangePassword: Boolean(backendUser.mustChangePassword),
 });
 
 interface AuthContextType extends AuthState {
-  login: (email: string, password: string, role?: UserRole) => Promise<void>;
+  login: (email: string, password: string, role?: UserRole) => Promise<User>;
+  changePassword: (newPassword: string, currentPassword?: string) => Promise<User>;
   logout: () => void;
   switchRole: (role: UserRole) => void;
 }
@@ -91,11 +93,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const frontendUser = buildFrontendUser(user);
       setAuthenticatedUser(frontendUser, { accessToken, refreshToken });
+      return frontendUser;
     } catch (error: unknown) {
       throw new Error(getApiErrorMessage(error, 'Erreur de connexion'));
     } finally {
       setState(prev => ({ ...prev, isLoading: false }));
     }
+  }, [setAuthenticatedUser]);
+
+  const changePassword = useCallback(async (newPassword: string, currentPassword?: string) => {
+    const response = await api.post('/auth/change-password', { newPassword, currentPassword });
+    const { accessToken, refreshToken, user } = response.data.data;
+    const frontendUser = buildFrontendUser(user);
+    setAuthenticatedUser(frontendUser, { accessToken, refreshToken });
+    return frontendUser;
   }, [setAuthenticatedUser]);
 
   const { toast } = useToast();
@@ -164,7 +175,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [clearSession, setAuthenticatedUser]);
 
   return (
-    <AuthContext.Provider value={{ ...state, login, logout, switchRole }}>
+    <AuthContext.Provider value={{ ...state, login, changePassword, logout, switchRole }}>
       {children}
     </AuthContext.Provider>
   );

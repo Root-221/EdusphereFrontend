@@ -239,6 +239,11 @@ export const academicApi = {
     return extractData<SchoolClass[]>(response);
   },
 
+  async fetchClassTeachers(classId: string): Promise<import('@/types/users').Teacher[]> {
+    const response = await api.get(`/school-admin/classes/${encodeURIComponent(classId)}/teachers`);
+    return extractData<import('@/types/users').Teacher[]>(response);
+  },
+
   async createClass(payload: CreateClassPayload): Promise<SchoolClass> {
     const response = await api.post('/school-admin/classes', payload);
     return extractData<SchoolClass>(response);

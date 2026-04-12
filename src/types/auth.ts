@@ -15,6 +15,7 @@ export interface User {
   avatar?: string;
   schoolId?: string;
   schoolName?: string;
+  mustChangePassword?: boolean;
 }
 
 export interface AuthState {

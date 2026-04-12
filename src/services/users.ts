@@ -17,6 +17,7 @@ export interface CreateTeacherPayload {
   email: string;
   phone?: string;
   subjectId?: string;
+  classIds?: string[];
   isActive?: boolean;
 }
 

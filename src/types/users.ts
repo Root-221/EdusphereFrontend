@@ -33,6 +33,8 @@ export interface Teacher {
   phone: string;
   subject: string;
   subjectId: string;
+  classIds: string[];
+  classNames: string[];
   status: UserStatus;
 }
 

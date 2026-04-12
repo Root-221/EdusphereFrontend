@@ -33,10 +33,12 @@ export default function Login() {
     e.preventDefault();
     setError('');
     try {
-      await login(email, password);
+      const authenticatedUser = await login(email, password);
       toast({
         title: "Connexion réussie !",
-        description: `Bienvenue, ${email}`,
+        description: authenticatedUser.mustChangePassword
+          ? 'Votre compte utilise un mot de passe temporaire. Le formulaire de changement va s’ouvrir.'
+          : `Bienvenue, ${authenticatedUser.firstName} ${authenticatedUser.lastName}`.trim(),
       });
       navigate('/dashboard');
     } catch (err: unknown) {
@@ -195,4 +197,3 @@ export default function Login() {
     </div>
   );
 }
-

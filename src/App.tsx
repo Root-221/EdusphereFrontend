@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { PasswordChangeDialog } from "@/components/auth/PasswordChangeDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { MobileLayout } from "./app/layouts/MobileLayout";
 import { navigationByRole, mobileNavItems } from "./app/navigation";
@@ -151,6 +152,7 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
+        <PasswordChangeDialog />
         <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Suspense fallback={<Loading />}>
             <Routes>
