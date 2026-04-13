@@ -151,7 +151,7 @@ export default function Timetables() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string>(CURRENT_ACADEMIC_SELECTION);
-  const [selectedClassId, setSelectedClassId] = useState('');
+  const [selectedLevelId, setSelectedLevelId] = useState('all');
   const [selectedRoomId, setSelectedRoomId] = useState('all');
   const [selectedSemesterId, setSelectedSemesterId] = useState<string>(CURRENT_ACADEMIC_SELECTION);
   const [selectedTimetableId, setSelectedTimetableId] = useState('');
@@ -218,6 +218,16 @@ export default function Timetables() {
     [options.classes, resolvedAcademicYearId],
   );
 
+  const availableLevels = useMemo(() => {
+    const map = new Map<string, { id: string; name: string }>();
+    availableClasses.forEach((schoolClass) => {
+      if (schoolClass.levelId && schoolClass.level?.name) {
+        map.set(schoolClass.levelId, { id: schoolClass.levelId, name: schoolClass.level.name });
+      }
+    });
+    return Array.from(map.values());
+  }, [availableClasses]);
+
   const classesByLevel = useMemo(() => {
     return availableClasses.reduce<Record<string, SchoolClass[]>>((acc, schoolClass) => {
       const key = schoolClass.level?.name || 'Sans niveau';
@@ -242,16 +252,13 @@ export default function Timetables() {
     return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
   }, [options.rooms]);
 
-  useEffect(() => {
-    if (!selectedClassId && availableClasses.length > 0) {
-      setSelectedClassId(availableClasses[0].id);
-    }
-  }, [availableClasses, selectedClassId]);
-
   const filteredTimetables = useMemo<TimetableRow[]>(
     () =>
       timetables
-        .filter((timetable) => (selectedClassId ? timetable.classId === selectedClassId : true))
+        .filter((timetable) => {
+          if (selectedLevelId === 'all') return true;
+          return timetable.class.levelId === selectedLevelId;
+        })
         .map((timetable) => ({
           ...timetable,
           searchText: [
@@ -264,7 +271,7 @@ export default function Timetables() {
             .join(' ')
             .toLowerCase(),
         })),
-    [timetables, selectedClassId],
+    [timetables, selectedLevelId],
   );
 
   const selectedTimetable = useMemo(
@@ -701,6 +708,31 @@ export default function Timetables() {
     });
   }, [options.currentSemesterId, selectedRoomId, selectedSemesterId, selectedTimetable]);
 
+  const selectedClass = useMemo(
+    () => (selectedTimetable ? options.classes.find((item) => item.id === selectedTimetable.classId) ?? null : null),
+    [options.classes, selectedTimetable],
+  );
+
+  const classSubjectIds = selectedClass?.subjectIds ?? [];
+  const availableSubjectsForClass = useMemo(() => {
+    if (!selectedClass) return [];
+    return options.subjects.filter((subject) => classSubjectIds.includes(subject.id));
+  }, [classSubjectIds, options.subjects, selectedClass]);
+
+  const availableTeachersForClass = useMemo(() => {
+    if (!selectedClass) return [];
+    const teacherIds = new Set<string>();
+    availableSubjectsForClass.forEach((subject) => {
+      subject.teacherIds?.forEach((id) => teacherIds.add(id));
+    });
+    (selectedClass.teacherIds ?? []).forEach((id) => teacherIds.add(id));
+    if (selectedClass.teacherId) {
+      teacherIds.add(selectedClass.teacherId);
+    }
+    if (teacherIds.size === 0) return [];
+    return options.teachers.filter((teacher) => teacherIds.has(teacher.id));
+  }, [availableSubjectsForClass, options.teachers, selectedClass]);
+
   const events = useMemo(
     () =>
       filteredEntries.map((entry) => ({
@@ -780,9 +812,9 @@ export default function Timetables() {
             value={selectedAcademicYearId}
             onValueChange={(value) => {
               setSelectedAcademicYearId(value);
-              setSelectedClassId('');
               setSelectedTimetableId('');
               setSelectedSemesterId(CURRENT_ACADEMIC_SELECTION);
+              setSelectedLevelId('all');
             }}
           >
             <SelectTrigger className="w-full">
@@ -815,15 +847,16 @@ export default function Timetables() {
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Classe</Label>
-          <Select value={selectedClassId} onValueChange={setSelectedClassId}>
+          <Label>Niveau</Label>
+          <Select value={selectedLevelId} onValueChange={setSelectedLevelId}>
             <SelectTrigger className="w-full">
-              <SelectValue placeholder="Choisir une classe" />
+              <SelectValue placeholder="Tous les niveaux" />
             </SelectTrigger>
             <SelectContent>
-              {availableClasses.map((schoolClass: SchoolClass) => (
-                <SelectItem key={schoolClass.id} value={schoolClass.id}>
-                  {schoolClass.name} - {schoolClass.level?.name || 'Sans niveau'}
+              <SelectItem value="all">Tous les niveaux</SelectItem>
+              {availableLevels.map((level) => (
+                <SelectItem key={level.id} value={level.id}>
+                  {level.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -1066,11 +1099,17 @@ export default function Timetables() {
                     <SelectValue placeholder="Matière" />
                   </SelectTrigger>
                   <SelectContent>
-                    {options.subjects.map((subject) => (
-                      <SelectItem key={subject.id} value={subject.id}>
-                        {subject.name}
+                    {availableSubjectsForClass.length > 0 ? (
+                      availableSubjectsForClass.map((subject) => (
+                        <SelectItem key={subject.id} value={subject.id}>
+                          {subject.name}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="none" disabled>
+                        Aucune matière affectée à cette classe
                       </SelectItem>
-                    ))}
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -1084,11 +1123,17 @@ export default function Timetables() {
                     <SelectValue placeholder="Enseignant" />
                   </SelectTrigger>
                   <SelectContent>
-                    {options.teachers.map((teacher) => (
-                      <SelectItem key={teacher.id} value={teacher.id}>
-                        {teacher.firstName} {teacher.name}
+                    {availableTeachersForClass.length > 0 ? (
+                      availableTeachersForClass.map((teacher) => (
+                        <SelectItem key={teacher.id} value={teacher.id}>
+                          {teacher.firstName} {teacher.name}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="none" disabled>
+                        Aucun enseignant affecté à cette classe
                       </SelectItem>
-                    ))}
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -1216,7 +1261,12 @@ export default function Timetables() {
                   !entryForm.subjectId ||
                   !entryForm.teacherId ||
                   !entryForm.startTime ||
-                  !entryForm.endTime
+                  !entryForm.endTime ||
+                  !entryForm.roomId ||
+                  !entryForm.buildingId ||
+                  !entryForm.dayOfWeek ||
+                  availableSubjectsForClass.length === 0 ||
+                  availableTeachersForClass.length === 0
                 }
               >
                 {entryMode === 'edit' ? 'Enregistrer' : 'Ajouter'}

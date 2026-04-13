@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookOpen, Calendar, Edit, Link, Plus, School, Trash2, Users } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -252,6 +252,12 @@ export default function Classes() {
     setSelectedSubjectIds(schoolClass.subjectIds ?? []);
     setIsSubjectsDialogOpen(true);
   };
+
+  useEffect(() => {
+    if (isSubjectsDialogOpen && selectedClass) {
+      setSelectedSubjectIds(selectedClass.subjectIds ?? []);
+    }
+  }, [isSubjectsDialogOpen, selectedClass]);
 
   const openTeachersDialog = (schoolClass: SchoolClass) => {
     setSelectedClassForTeachers(schoolClass);

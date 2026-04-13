@@ -44,6 +44,7 @@ export interface SchoolClass {
   level: Level | null;
   teacherId: string;
   teacher: string;
+  teacherIds: string[];
   students: number;
   subjects: string[];
   subjectIds: string[];
