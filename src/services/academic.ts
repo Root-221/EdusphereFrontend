@@ -1,6 +1,9 @@
 import api from '@/lib/api';
 import type {
   AcademicYear,
+  AnnualTimetable,
+  AnnualTimetableEntry,
+  AnnualTimetableOptions,
   ClassStatus,
   Level,
   LevelStatus,
@@ -131,6 +134,12 @@ export interface FetchTimetablesParams {
   status?: TimetableStatus;
 }
 
+export interface FetchAnnualTimetablesParams {
+  academicYearId?: string;
+  classId?: string;
+  status?: TimetableStatus;
+}
+
 export interface CreateTimeSlotPayload {
   name: string;
   startTime: string;
@@ -162,6 +171,29 @@ export interface CreateTimetableEntryPayload {
 }
 
 export interface UpdateTimetableEntryPayload extends Partial<CreateTimetableEntryPayload> {}
+
+export interface CreateAnnualTimetablePayload {
+  academicYearId?: string;
+  classId: string;
+  status?: TimetableStatus;
+}
+
+export interface UpdateAnnualTimetablePayload extends Partial<CreateAnnualTimetablePayload> {}
+
+export interface CreateAnnualTimetableEntryPayload {
+  dayOfWeek: string;
+  startTime: string;
+  endTime: string;
+  dateStart: string;
+  dateEnd: string;
+  subjectId: string;
+  teacherId: string;
+  classId?: string;
+  roomId?: string;
+  semesterId?: string;
+}
+
+export interface UpdateAnnualTimetableEntryPayload extends Partial<CreateAnnualTimetableEntryPayload> {}
 
 export const academicApi = {
   async fetchAcademicYears(): Promise<AcademicYear[]> {
@@ -314,14 +346,29 @@ export const academicApi = {
     return extractData<Timetable[]>(response);
   },
 
+  async fetchAnnualTimetables(params?: FetchAnnualTimetablesParams): Promise<AnnualTimetable[]> {
+    const response = await api.get(`/school-admin/annual-timetables${buildQueryString(params)}`);
+    return extractData<AnnualTimetable[]>(response);
+  },
+
   async fetchTimetableOptions(): Promise<TimetableOptions> {
     const response = await api.get('/school-admin/timetables/options');
     return extractData<TimetableOptions>(response);
   },
 
+  async fetchAnnualTimetableOptions(): Promise<AnnualTimetableOptions> {
+    const response = await api.get('/school-admin/annual-timetables/options');
+    return extractData<AnnualTimetableOptions>(response);
+  },
+
   async fetchTimetable(id: string): Promise<Timetable> {
     const response = await api.get(`/school-admin/timetables/${id}`);
     return extractData<Timetable>(response);
+  },
+
+  async fetchAnnualTimetable(id: string): Promise<AnnualTimetable> {
+    const response = await api.get(`/school-admin/annual-timetables/${id}`);
+    return extractData<AnnualTimetable>(response);
   },
 
   async createTimetable(payload: CreateTimetablePayload): Promise<Timetable> {
@@ -332,6 +379,21 @@ export const academicApi = {
   async updateTimetable(id: string, payload: UpdateTimetablePayload): Promise<Timetable> {
     const response = await api.patch(`/school-admin/timetables/${id}`, payload);
     return extractData<Timetable>(response);
+  },
+
+  async createAnnualTimetable(payload: CreateAnnualTimetablePayload): Promise<AnnualTimetable> {
+    const response = await api.post('/school-admin/annual-timetables', payload);
+    return extractData<AnnualTimetable>(response);
+  },
+
+  async updateAnnualTimetable(id: string, payload: UpdateAnnualTimetablePayload): Promise<AnnualTimetable> {
+    const response = await api.patch(`/school-admin/annual-timetables/${id}`, payload);
+    return extractData<AnnualTimetable>(response);
+  },
+
+  async deleteAnnualTimetable(id: string): Promise<AnnualTimetable> {
+    const response = await api.delete(`/school-admin/annual-timetables/${id}`);
+    return extractData<AnnualTimetable>(response);
   },
 
   async deleteTimetable(id: string): Promise<Timetable> {
@@ -349,6 +411,14 @@ export const academicApi = {
     return extractData<TimetableEntry>(response);
   },
 
+  async createAnnualTimetableEntry(
+    id: string,
+    payload: CreateAnnualTimetableEntryPayload,
+  ): Promise<AnnualTimetableEntry> {
+    const response = await api.post(`/school-admin/annual-timetables/${id}/entries`, payload);
+    return extractData<AnnualTimetableEntry>(response);
+  },
+
   async updateTimetableEntry(
     id: string,
     entryId: string,
@@ -358,9 +428,23 @@ export const academicApi = {
     return extractData<TimetableEntry>(response);
   },
 
+  async updateAnnualTimetableEntry(
+    id: string,
+    entryId: string,
+    payload: UpdateAnnualTimetableEntryPayload,
+  ): Promise<AnnualTimetableEntry> {
+    const response = await api.patch(`/school-admin/annual-timetables/${id}/entries/${entryId}`, payload);
+    return extractData<AnnualTimetableEntry>(response);
+  },
+
   async deleteTimetableEntry(id: string, entryId: string): Promise<{ id: string; timetableId: string }> {
     const response = await api.delete(`/school-admin/timetables/${id}/entries/${entryId}`);
     return extractData<{ id: string; timetableId: string }>(response);
+  },
+
+  async deleteAnnualTimetableEntry(id: string, entryId: string): Promise<{ id: string; annualTimetableId: string }> {
+    const response = await api.delete(`/school-admin/annual-timetables/${id}/entries/${entryId}`);
+    return extractData<{ id: string; annualTimetableId: string }>(response);
   },
 };
 

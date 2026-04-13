@@ -192,3 +192,86 @@ export interface TimetableOptions {
   teachers: Teacher[];
   timeSlots: TimeSlot[];
 }
+
+export interface AnnualTimetableEntry {
+  id: string;
+  annualTimetableId: string;
+  dayOfWeek: string;
+  startTime: string;
+  endTime: string;
+  dateStart: string;
+  dateEnd: string;
+  subjectId: string;
+  subject: {
+    id: string;
+    name: string;
+    coefficient: number;
+  };
+  teacherId: string;
+  teacher: {
+    id: string;
+    firstName: string;
+    name: string;
+    email: string;
+    subject: string;
+    subjectId: string;
+  } | null;
+  classId: string;
+  class: SchoolClass;
+  roomId: string | null;
+  room: {
+    id: string;
+    name: string;
+    buildingId: string;
+    buildingName: string;
+    status: string;
+    capacity: number;
+    roomType: string;
+  } | null;
+  semesterId: string | null;
+  semester: {
+    id: string;
+    name: string;
+    academicYearId: string;
+    startDate: string;
+    endDate: string;
+    status: string;
+  } | null;
+}
+
+export interface AnnualTimetable {
+  id: string;
+  academicYearId: string;
+  academicYear: {
+    id: string;
+    name: string;
+    status: AcademicYearStatus | string;
+    startDate: string;
+    endDate: string;
+  };
+  classId: string;
+  class: SchoolClass;
+  status: TimetableStatus;
+  entries: AnnualTimetableEntry[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AnnualTimetableOptions {
+  currentAcademicYearId: string | null;
+  currentSemesterId: string | null;
+  academicYears: Array<Pick<AcademicYear, 'id' | 'name' | 'status' | 'startDate' | 'endDate'>>;
+  semesters: Array<Pick<Semester, 'id' | 'name' | 'academicYearId' | 'academicYear' | 'startDate' | 'endDate'> & { status: SemesterStatus | string }>;
+  classes: Array<Pick<SchoolClass, 'id' | 'name' | 'capacity' | 'levelId' | 'level' | 'teacherId' | 'teacher' | 'students' | 'subjects' | 'subjectIds' | 'status' | 'academicYearId' | 'academicYear'>>;
+  subjects: Array<Pick<Subject, 'id' | 'name' | 'code' | 'teachers' | 'hours' | 'coefficient' | 'teacherIds' | 'teacherNames' | 'status' | 'description'>>;
+  teachers: Teacher[];
+  rooms: {
+    id: string;
+    name: string;
+    buildingId: string;
+    buildingName: string;
+    status: string;
+    capacity: number;
+    roomType: string;
+  }[];
+}
