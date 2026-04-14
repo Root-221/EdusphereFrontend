@@ -165,18 +165,8 @@ export const navigationByRole: Record<UserRole, NavGroup[]> = {
     {
       label: 'Scolarité',
       items: [
-        { title: 'Devoirs', url: '/my-assignments', icon: ClipboardList },
-        { title: 'Compositions', url: '/my-exams', icon: FileText },
-        { title: 'Mes Notes', url: '/my-grades', icon: Award },
-        { title: 'Bulletins', url: '/my-bulletins', icon: BookMarked },
         { title: 'Emploi du Temps', url: '/timetable', icon: CalendarDays },
-      ],
-    },
-    {
-      label: 'Historique',
-      items: [
         { title: 'Historique', url: '/academic-history', icon: History },
-        { title: 'Présence', url: '/attendance', icon: ClipboardCheck },
         { title: 'Paiements', url: '/my-payments', icon: Wallet },
       ],
     },
@@ -235,8 +225,7 @@ export const mobileNavItems: Record<UserRole, { label: string; icon: React.Compo
   student: [
     { label: 'Accueil', icon: Home, href: '/dashboard' },
     { label: 'EDT', icon: CalendarDays, href: '/timetable' },
-    { label: 'Devoirs', icon: ClipboardList, href: '/my-assignments' },
-    { label: 'Notes', icon: Award, href: '/my-grades' },
+    { label: 'Infos', icon: Bell, href: '/notifications' },
     { label: 'Profil', icon: User, href: '/profile' },
   ],
   parent: [

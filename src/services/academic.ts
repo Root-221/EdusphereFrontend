@@ -39,7 +39,7 @@ const isReactQueryContext = (value: unknown): value is Record<string, unknown> =
   return Object.keys(value as Record<string, unknown>).some((key) => REACT_QUERY_CONTEXT_KEYS.has(key));
 };
 
-const buildQueryString = (params?: Record<string, string | number | boolean | undefined | null>) => {
+const buildQueryString = (params?: Record<string, any>) => {
   if (!params || isReactQueryContext(params)) {
     return '';
   }
@@ -61,7 +61,7 @@ export interface CreateAcademicYearPayload {
   status?: AcademicYear['status'];
 }
 
-export interface UpdateAcademicYearPayload extends Partial<CreateAcademicYearPayload> {}
+export type UpdateAcademicYearPayload = Partial<CreateAcademicYearPayload>;
 
 export interface FetchSemestersParams {
   academicYearId?: string;
@@ -139,6 +139,7 @@ export interface FetchAnnualTimetablesParams {
   academicYearId?: string;
   classId?: string;
   status?: TimetableStatus;
+  weekStartDate?: string;
 }
 
 export interface CreateTimeSlotPayload {
@@ -444,6 +445,7 @@ export const academicApi = {
   },
 
   async deleteAnnualTimetableEntry(id: string, entryId: string): Promise<{ id: string; annualTimetableId: string }> {
+    console.log('[DELETE] id:', id, 'entryId:', entryId);
     const response = await api.delete(`/school-admin/annual-timetables/${id}/entries/${entryId}`);
     return extractData<{ id: string; annualTimetableId: string }>(response);
   },
@@ -481,7 +483,12 @@ export const academicApi = {
     return extractData<any>(response);
   },
 
-  async cancelWeeklyInstance(instanceId: string, reason?: string): Promise<any> {
+async deleteWeeklyInstance(instanceId: string): Promise<any> {
+    const response = await api.delete(`/school-admin/weekly-instances/${instanceId}`);
+    return extractData<any>(response);
+  },
+
+async cancelWeeklyInstance(instanceId: string, reason?: string): Promise<any> {
     const response = await api.post(`/school-admin/weekly-instances/${instanceId}/cancel`, { reason });
     return extractData<any>(response);
   },

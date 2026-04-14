@@ -2,7 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
-import interactionPlugin, { type DateSelectArg, type EventClickArg, type EventDropArg, type EventResizeDoneArg } from '@fullcalendar/interaction';
+import interactionPlugin from '@fullcalendar/interaction';
+import type { EventClickArg, EventDropArg } from '@fullcalendar/core';
+import type { EventResizeDoneArg } from '@fullcalendar/interaction';
+import type { DateSelectArg } from '@fullcalendar/core';
 import { type EventContentArg } from '@fullcalendar/core';
 import frLocale from '@fullcalendar/core/locales/fr';
 import { format } from 'date-fns';
@@ -13,7 +16,6 @@ import {
   academicApi,
   type CreateAnnualTimetablePayload,
   type CreateAnnualTimetableEntryPayload,
-  type TimetableStatus,
   type UpdateAnnualTimetableEntryPayload,
   type UpdateAnnualTimetablePayload,
 } from '@/services/academic';
@@ -29,6 +31,7 @@ import type {
   CourseStatus,
   COURSE_STATUS_LABELS,
   SchoolClass,
+  TimetableStatus,
 } from '@/types/academic';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -380,7 +383,6 @@ export default function Timetables() {
       });
       invalidateAll();
       setIsTimetableDialogOpen(false);
-      setSelectedClassId(timetable.classId);
       setSelectedTimetableId(timetable.id);
     },
     onError: (error) => {
@@ -401,7 +403,6 @@ export default function Timetables() {
       });
       invalidateAll();
       setIsTimetableDialogOpen(false);
-      setSelectedClassId(timetable.classId);
       setSelectedTimetableId(timetable.id);
     },
     onError: (error) => {
@@ -472,7 +473,7 @@ export default function Timetables() {
     },
   });
 
-  const deleteEntryMutation = useMutation({
+const deleteEntryMutation = useMutation({
     mutationFn: ({ id, entryId }: { id: string; entryId: string }) =>
       academicApi.deleteAnnualTimetableEntry(id, entryId),
     onSuccess: (result, variables) => {
@@ -1374,11 +1375,12 @@ export default function Timetables() {
           <AlertDialogFooter>
             <AlertDialogCancel>Annuler</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() =>
+              onClick={() => {
+                console.log('[DELETE CLICK] entryToDelete:', entryToDelete?.annualTimetableEntryId, 'selectedTimetable:', selectedTimetable?.id);
                 entryToDelete &&
                 selectedTimetable &&
-                deleteEntryMutation.mutate({ id: selectedTimetable.id, entryId: entryToDelete.id })
-              }
+                deleteEntryMutation.mutate({ id: selectedTimetable.id, entryId: entryToDelete.annualTimetableEntryId || entryToDelete.id })
+              }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Supprimer
@@ -1402,15 +1404,16 @@ export default function Timetables() {
                   Cours: <strong>{statusToChange.entry.subject.name}</strong> -{' '}
                   {statusToChange.entry.dayOfWeek} {statusToChange.entry.startTime}-{statusToChange.entry.endTime}
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-col gap-2">
                   {statusToChange.entry.status === 'COMPLETED' ? (
                     <p className="text-sm text-muted-foreground">Vous ne pouvez pas modifier le statut d'un cours terminé.</p>
                   ) : statusToChange.entry.status === 'CANCELLED' ? (
                     <>
-                      <p className="text-sm text-muted-foreground mb-2">Ce cours est annulé. Vous pouvez le reprogrammer.</p>
+                      <p className="text-sm text-muted-foreground mb-2">Ce cours est annulé. Vous pouvez le reprogrammer pour qu'il reprenne son cours normal.</p>
                       <Button
                         variant="default"
                         size="sm"
+                        className="w-fit"
                         onClick={() => {
                           updateEntryStatusMutation.mutate({
                             instanceId: statusToChange.entry.id,
@@ -1423,27 +1426,20 @@ export default function Timetables() {
                       </Button>
                     </>
                   ) : (
-                    (['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'] as const).map((status) => (
+                    <>
+                      <p className="text-sm text-muted-foreground mb-2">Ce cours est géré automatiquement. Vous pouvez uniquement l'annuler en cas d'imprévu.</p>
                       <Button
-                        key={status}
-                        variant={statusToChange.status === status ? 'default' : 'outline'}
+                        variant={statusToChange.status === 'CANCELLED' ? 'default' : 'destructive'}
                         size="sm"
+                        className="w-fit"
                         onClick={() => {
-                            if (status === 'CANCELLED') {
-                              setCancelReason('');
-                              setStatusToChange({ entry: statusToChange.entry, status });
-                            } else {
-                              updateEntryStatusMutation.mutate({
-                                instanceId: statusToChange.entry.id,
-                                status,
-                              });
-                              setStatusToChange(null);
-                            }
-                          }}
+                          setCancelReason('');
+                          setStatusToChange({ entry: statusToChange.entry, status: 'CANCELLED' });
+                        }}
                       >
-                        {COURSE_STATUS_LABELS_RECORD[status]}
+                        Annuler le cours
                       </Button>
-                    ))
+                    </>
                   )}
                 </div>
                 {statusToChange.status === 'CANCELLED' && (

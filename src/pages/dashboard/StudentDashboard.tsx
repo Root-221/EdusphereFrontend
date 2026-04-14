@@ -1,69 +1,97 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { studentApi, type StudentProfile, type StudentTimetable } from '@/lib/api-student';
 import { StatsCard, StatsGrid } from '@/components/dashboard/StatsCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import QRCode from 'react-qr-code';
 import { 
   BookOpen,
-  Award,
-  ClipboardList,
   Calendar,
-  TrendingUp,
-  CheckCircle,
   Clock,
+  QrCode as QrCodeIcon,
+  Loader2,
+  School,
   FileText,
-  BarChart3,
-  QrCode
+  GraduationCap,
 } from 'lucide-react';
+import { DAYS_OF_WEEK } from '@/types/timetable';
 
-// Mock data for the student
-const mockStudentData = {
-  class: 'Terminale S1',
-  academicYear: '2024-2025',
-  activeSemester: 'Semestre 2',
-  average: 14.5,
-  ranking: '5ème/35',
-  totalAssignments: 12,
-  completedAssignments: 9,
-  totalExams: 6,
-  passedExams: 5,
-  successRate: 83,
-};
+function LoadingSpinner() {
+  return (
+    <div className="flex items-center justify-center py-12">
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+    </div>
+  );
+}
 
-const recentGrades = [
-  { id: '1', subject: 'Mathématiques', grade: 15, max: 20, type: 'Devoir', date: '10/02/2025' },
-  { id: '2', subject: 'Français', grade: 14, max: 20, type: 'Composition', date: '08/02/2025' },
-  { id: '3', subject: 'Physique', grade: 16, max: 20, type: 'Devoir', date: '05/02/2025' },
-  { id: '4', subject: 'Anglais', grade: 17, max: 20, type: 'Oral', date: '03/02/2025' },
-];
-
-const upcomingAssignments = [
-  { id: '1', subject: 'Mathématiques', title: 'Exercices Chapitre 5', dueDate: '15/02/2025', priority: 'high' },
-  { id: '2', subject: 'Français', title: 'Dissertation', dueDate: '18/02/2025', priority: 'medium' },
-  { id: '3', subject: 'Histoire', title: 'Exposé', dueDate: '20/02/2025', priority: 'low' },
-];
-
-const getGradeColor = (grade: number) => {
-  if (grade >= 14) return 'text-success';
-  if (grade >= 10) return 'text-warning';
-  return 'text-destructive';
-};
-
-const getPriorityColor = (priority: string) => {
-  switch (priority) {
-    case 'high': return 'bg-red-100 text-red-700';
-    case 'medium': return 'bg-yellow-100 text-yellow-700';
-    case 'low': return 'bg-green-100 text-green-700';
-    default: return 'bg-gray-100 text-gray-700';
-  }
-};
+function EmptyState({ message }: { message: string }) {
+  return (
+    <div className="flex items-center justify-center py-12 text-muted-foreground">
+      <p>{message}</p>
+    </div>
+  );
+}
 
 export default function StudentDashboard() {
   const { user } = useAuth();
-  const [studentData] = useState(mockStudentData);
+  const [profile, setProfile] = useState<StudentProfile | null>(null);
+  const [timetable, setTimetable] = useState<StudentTimetable | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const now = new Date();
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay() + 1);
+    const weekStartDate = startOfWeek.toISOString().split('T')[0];
+
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const [profileData, timetableData] = await Promise.all([
+          studentApi.getProfile(),
+          studentApi.getTimetable(weekStartDate),
+        ]);
+        setProfile(profileData);
+        setTimetable(timetableData);
+      } catch (err) {
+        console.error('Failed to fetch student data:', err);
+        setError('Impossible de charger les données');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardContent className="pt-6">
+            <LoadingSpinner />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error || !profile) {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardContent className="pt-6">
+            <EmptyState message={error || 'Aucune donnée disponible'} />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const qrCodeValue = profile.profile.qrCode || profile.profile.matricule || `${user?.id}`;
 
   return (
     <div className="space-y-6">
@@ -76,24 +104,31 @@ export default function StudentDashboard() {
         </Avatar>
         <div className="flex-1">
           <h1 className="text-2xl font-bold tracking-tight">
-            Salut, {user?.firstName} 👋
+            Bonjour, {user?.firstName} 👋
           </h1>
           <p className="text-muted-foreground">
             Bienvenue dans ton espace élève
           </p>
           <div className="flex flex-wrap gap-2 mt-2">
-            <Badge variant="secondary" className="gap-1">
-              <BookOpen className="h-3 w-3" />
-              {studentData.class}
-            </Badge>
-            <Badge variant="outline" className="gap-1">
-              <Calendar className="h-3 w-3" />
-              {studentData.academicYear}
-            </Badge>
-            <Badge className="bg-primary/20 text-primary gap-1">
-              <Clock className="h-3 w-3" />
-              {studentData.activeSemester}
-            </Badge>
+            {profile.class && (
+              <Badge variant="secondary" className="gap-1">
+                <School className="h-3 w-3" />
+                {profile.class.name}
+                {profile.class.level && <span className="text-muted-foreground"> - {profile.class.level}</span>}
+              </Badge>
+            )}
+            {profile.academicYear && (
+              <Badge variant="outline" className="gap-1">
+                <Calendar className="h-3 w-3" />
+                {profile.academicYear.name}
+              </Badge>
+            )}
+            {profile.semester && (
+              <Badge className="bg-primary/20 text-primary gap-1">
+                <Clock className="h-3 w-3" />
+                {profile.semester.name}
+              </Badge>
+            )}
           </div>
         </div>
         
@@ -102,162 +137,145 @@ export default function StudentDashboard() {
           <CardContent className="p-3">
             <div className="flex flex-col items-center gap-2">
               <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                <QrCode className="h-3 w-3" />
+                <QrCodeIcon className="h-3 w-3" />
                 <span>Mon Code</span>
               </div>
               <div className="bg-white p-2 rounded-lg border-2 border-primary/20">
                 <QRCode 
-                  value={`EDUSPHERE-${user?.id || 'STUDENT'}-${studentData.class}`}
+                  value={qrCodeValue}
                   size={100}
                   style={{ height: "100px", maxWidth: "100px", width: "100px" }}
                   viewBox={`0 0 100 100`}
                 />
               </div>
               <p className="text-xs font-medium text-primary">
-                {user?.firstName} {user?.lastName?.[0]}.
+                {profile.profile.matricule || `${user?.firstName} ${user?.lastName?.[0]}.`}
               </p>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Stats Grid - GRID by default */}
-      <StatsGrid columns={4}>
+      {/* Info Cards */}
+      <StatsGrid columns={3}>
         <StatsCard
-          title="Moyenne Générale"
-          value={`${studentData.average}/20`}
-          icon={Award}
-          variant="primary"
-        />
-        <StatsCard
-          title="Classement"
-          value={studentData.ranking}
-          icon={TrendingUp}
-          variant="success"
-        />
-        <StatsCard
-          title="Devoirs"
-          value={`${studentData.completedAssignments}/${studentData.totalAssignments}`}
-          subtitle="terminés"
-          icon={ClipboardList}
+          title="Matricule"
+          value={profile.profile.matricule || '-'}
+          icon={FileText}
           variant="default"
         />
         <StatsCard
-          title="Taux de Réussite"
-          value={`${studentData.successRate}%`}
-          icon={BarChart3}
-          variant={studentData.successRate >= 80 ? 'success' : 'warning'}
+          title="Année Scolaire"
+          value={profile.academicYear?.name || '-'}
+          icon={Calendar}
+          variant="primary"
+        />
+        <StatsCard
+          title="Semestre"
+          value={profile.semester?.name || '-'}
+          icon={Clock}
+          variant="default"
         />
       </StatsGrid>
 
-      {/* Additional Stats */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card className="shadow-sm">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Compositions</p>
-                <p className="text-2xl font-bold">{studentData.passedExams}/{studentData.totalExams}</p>
-                <p className="text-xs text-muted-foreground">Réussies</p>
-              </div>
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-                <FileText className="h-6 w-6 text-primary" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="shadow-sm">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Matières</p>
-                <p className="text-2xl font-bold">8</p>
-                <p className="text-xs text-muted-foreground">Inscrites</p>
-              </div>
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-success/10">
-                <BookOpen className="h-6 w-6 text-success" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="shadow-sm">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Absences</p>
-                <p className="text-2xl font-bold">2</p>
-                <p className="text-xs text-muted-foreground">Ce semestre</p>
-              </div>
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-warning/10">
-                <Clock className="h-6 w-6 text-warning" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Timetable Preview */}
+      {timetable && timetable.entries.length > 0 && (() => {
+        const getDayName = (dateStr: string): string => {
+          const date = new Date(dateStr);
+          const days = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+          return days[date.getDay()];
+        };
 
-      {/* Recent Grades and Upcoming Assignments */}
-      <div className="grid gap-6 lg:grid-cols-2">
+        const entriesByDay = timetable.entries.reduce((acc, entry) => {
+          const dayName = entry.date ? getDayName(entry.date) : entry.dayOfWeek;
+          if (!acc[dayName]) {
+            acc[dayName] = [];
+          }
+          acc[dayName].push(entry);
+          return acc;
+        }, {} as Record<string, typeof timetable.entries>);
+
+        const dayOrder = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+        const sortedDays = Object.keys(entriesByDay).sort((a, b) => 
+          dayOrder.indexOf(a) - dayOrder.indexOf(b)
+        );
+
+        return (
+          <Card className="shadow-card">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <BookOpen className="h-5 w-5" />
+                Mon Emploi du Temps
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {sortedDays.map((day) => {
+                  const dayEntries = entriesByDay[day];
+                  if (dayEntries.length === 0) return null;
+
+                  return (
+                    <div key={day} className="border rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium">{day}</span>
+                        <Badge variant="secondary">{dayEntries.length} cours</Badge>
+                      </div>
+                      <div className="space-y-2">
+                        {dayEntries.slice(0, 3).map((entry) => (
+                          <div key={entry.id} className="flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-primary">{entry.subject.name}</span>
+                            </div>
+                            <span className="text-muted-foreground text-xs">
+                              {entry.startTime} - {entry.endTime}
+                            </span>
+                          </div>
+                        ))}
+                        {dayEntries.length > 3 && (
+                          <p className="text-xs text-muted-foreground">
+                            +{dayEntries.length - 3} autres cours
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {timetable.entries.length === 0 && (
+                <EmptyState message="Aucun cours prévu pour le moment" />
+              )}
+            </CardContent>
+          </Card>
+        );
+      })()}
+
+      {/* Parent Info */}
+      {(profile.profile.parentName || profile.profile.parentPhone) && (
         <Card className="shadow-card">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <Award className="h-5 w-5" />
-              Notes Récentes
+              <GraduationCap className="h-5 w-5" />
+              Informations Parentales
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {recentGrades.map((grade) => (
-                <div
-                  key={grade.id}
-                  className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer"
-                >
-                  <div>
-                    <p className="font-medium">{grade.subject}</p>
-                    <p className="text-xs text-muted-foreground">{grade.type} • {grade.date}</p>
-                  </div>
-                  <div className="text-right">
-                    <span className={`text-lg font-bold ${getGradeColor(grade.grade)}`}>
-                      {grade.grade}
-                    </span>
-                    <span className="text-muted-foreground">/{grade.max}</span>
-                  </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              {profile.profile.parentName && (
+                <div>
+                  <p className="text-sm text-muted-foreground">Nom du parent/tuteur</p>
+                  <p className="font-medium">{profile.profile.parentName}</p>
                 </div>
-              ))}
+              )}
+              {profile.profile.parentPhone && (
+                <div>
+                  <p className="text-sm text-muted-foreground">Téléphone</p>
+                  <p className="font-medium">{profile.profile.parentPhone}</p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
-
-        <Card className="shadow-card">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Devoirs à Venir
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {upcomingAssignments.map((assignment) => (
-                <div
-                  key={assignment.id}
-                  className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer"
-                >
-                  <div>
-                    <p className="font-medium">{assignment.title}</p>
-                    <p className="text-xs text-muted-foreground">{assignment.subject}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${getPriorityColor(assignment.priority)}`}>
-                      {assignment.dueDate}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      )}
     </div>
   );
 }
-

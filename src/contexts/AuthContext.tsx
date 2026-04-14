@@ -42,6 +42,7 @@ const buildFrontendUser = (backendUser: BackendUser): User => ({
   avatar: backendUser.avatar,
   schoolId: backendUser.schoolId,
   schoolName: backendUser.schoolName,
+  schoolSlug: (backendUser as any).schoolSlug,
   mustChangePassword: Boolean(backendUser.mustChangePassword),
 });
 
@@ -66,7 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const setAuthenticatedUser = useCallback((user: User, tokens?: SessionTokens) => {
     if (tokens) {
-      saveSessionTokens(tokens, user.role);
+      saveSessionTokens(tokens, user.role, user.schoolSlug);
     }
     setState({
       user,

@@ -203,7 +203,7 @@ export interface TimetableOptions {
   currentSemesterId: string | null;
   academicYears: Array<Pick<AcademicYear, 'id' | 'name' | 'status'>>;
   semesters: Array<Pick<Semester, 'id' | 'name' | 'academicYearId' | 'academicYear'> & { status: SemesterStatus | string }>;
-  classes: Array<Pick<SchoolClass, 'id' | 'name' | 'capacity' | 'levelId' | 'level' | 'teacherId' | 'teacher' | 'students' | 'subjects' | 'subjectIds' | 'status' | 'academicYearId' | 'academicYear'>>;
+  classes: Array<Pick<SchoolClass, 'id' | 'name' | 'capacity' | 'levelId' | 'level' | 'teacherId' | 'teacher' | 'teacherIds' | 'students' | 'subjects' | 'subjectIds' | 'status' | 'academicYearId' | 'academicYear'>>;
   subjects: Array<Pick<Subject, 'id' | 'name' | 'code' | 'teachers' | 'hours' | 'coefficient' | 'teacherIds' | 'teacherNames' | 'status' | 'description'>>;
   teachers: Teacher[];
   timeSlots: TimeSlot[];
@@ -212,6 +212,7 @@ export interface TimetableOptions {
 export interface AnnualTimetableEntry {
   id: string;
   annualTimetableId: string;
+  annualTimetableEntryId: string;
   dayOfWeek: string;
   startTime: string;
   endTime: string;
@@ -282,7 +283,7 @@ export interface AnnualTimetableOptions {
   currentSemesterId: string | null;
   academicYears: Array<Pick<AcademicYear, 'id' | 'name' | 'status' | 'startDate' | 'endDate'>>;
   semesters: Array<Pick<Semester, 'id' | 'name' | 'academicYearId' | 'academicYear' | 'startDate' | 'endDate'> & { status: SemesterStatus | string }>;
-  classes: Array<Pick<SchoolClass, 'id' | 'name' | 'capacity' | 'levelId' | 'level' | 'teacherId' | 'teacher' | 'students' | 'subjects' | 'subjectIds' | 'status' | 'academicYearId' | 'academicYear'>>;
+  classes: Array<Pick<SchoolClass, 'id' | 'name' | 'capacity' | 'levelId' | 'level' | 'teacherId' | 'teacher' | 'teacherIds' | 'students' | 'subjects' | 'subjectIds' | 'status' | 'academicYearId' | 'academicYear'>>;
   subjects: Array<Pick<Subject, 'id' | 'name' | 'code' | 'teachers' | 'hours' | 'coefficient' | 'teacherIds' | 'teacherNames' | 'status' | 'description'>>;
   teachers: Teacher[];
   rooms: {
