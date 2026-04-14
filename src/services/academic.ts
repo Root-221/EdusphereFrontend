@@ -465,6 +465,31 @@ export const academicApi = {
     const response = await api.post(`/school-admin/annual-timetables/${id}/entries/${entryId}/cancel`, { reason });
     return extractData<AnnualTimetableEntry>(response);
   },
+
+  async listWeeklyInstances(weekStartDate: string, classId?: string): Promise<any[]> {
+    const params = new URLSearchParams({ weekStartDate });
+    if (classId) params.append('classId', classId);
+    const response = await api.get(`/school-admin/weekly-instances?${params.toString()}`);
+    return extractData<any[]>(response);
+  },
+
+  async updateWeeklyInstanceStatus(instanceId: string, status?: string, roomId?: string): Promise<any> {
+    const response = await api.patch(`/school-admin/weekly-instances/${instanceId}/status`, {
+      status,
+      roomId,
+    });
+    return extractData<any>(response);
+  },
+
+  async cancelWeeklyInstance(instanceId: string, reason?: string): Promise<any> {
+    const response = await api.post(`/school-admin/weekly-instances/${instanceId}/cancel`, { reason });
+    return extractData<any>(response);
+  },
+
+  async updateWeeklyInstance(instanceId: string, payload: { startTime?: string; endTime?: string; dayOfWeek?: string; date?: string; roomId?: string }): Promise<any> {
+    const response = await api.patch(`/school-admin/weekly-instances/${instanceId}`, payload);
+    return extractData<any>(response);
+  },
 };
 
 export { buildQueryString };

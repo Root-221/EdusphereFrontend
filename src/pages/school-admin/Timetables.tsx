@@ -213,6 +213,16 @@ export default function Timetables() {
     optionsQuery.data?.academicYears ?? [],
   );
 
+  useEffect(() => {
+    if (!currentWeekStart && optionsQuery.data) {
+      const now = new Date();
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(now.getDate() - now.getDay() + 1);
+      const startDateStr = startOfWeek.toISOString().split('T')[0];
+      setCurrentWeekStart(startDateStr);
+    }
+  }, [optionsQuery.data, currentWeekStart]);
+
   const timetablesQuery = useQuery({
     queryKey: ['school-admin', 'annual-timetables', resolvedAcademicYearId, currentWeekStart],
     queryFn: () =>
@@ -221,6 +231,7 @@ export default function Timetables() {
           ? { academicYearId: resolvedAcademicYearId, weekStartDate: currentWeekStart || undefined }
           : { weekStartDate: currentWeekStart || undefined },
       ),
+    enabled: !!currentWeekStart,
     retry: false,
   });
 
@@ -442,16 +453,13 @@ export default function Timetables() {
   });
 
   const updateEntryMutation = useMutation({
-    mutationFn: ({ id, entryId, payload }: { id: string; entryId: string; payload: UpdateAnnualTimetableEntryPayload }) =>
-      academicApi.updateAnnualTimetableEntry(id, entryId, payload),
+    mutationFn: ({ instanceId, payload }: { instanceId: string; payload: { startTime?: string; endTime?: string; dayOfWeek?: string; date?: string; roomId?: string } }) =>
+      academicApi.updateWeeklyInstance(instanceId, payload),
     onSuccess: (entry, variables) => {
       toast({
         title: 'Cours mis à jour',
         description: 'Les modifications ont été enregistrées.',
       });
-      updateTimetableEntriesCache(variables.id, (entries) =>
-        entries.map((item) => (item.id === entry.id ? entry : item)),
-      );
       invalidateAll();
       setIsEntryDialogOpen(false);
       setEditingEntry(null);
@@ -489,16 +497,13 @@ export default function Timetables() {
   });
 
   const updateEntryStatusMutation = useMutation({
-    mutationFn: ({ id, entryId, status }: { id: string; entryId: string; status: string }) =>
-      academicApi.updateAnnualTimetableEntryStatus(id, entryId, status as any),
+    mutationFn: ({ instanceId, status }: { instanceId: string; status: string }) =>
+      academicApi.updateWeeklyInstanceStatus(instanceId, status as any),
     onSuccess: (entry, variables) => {
       toast({
         title: 'Statut mis à jour',
         description: `Le cours est maintenant ${entry.status}`,
       });
-      updateTimetableEntriesCache(variables.id, (entries) =>
-        entries.map((item) => (item.id === entry.id ? entry : item)),
-      );
       invalidateAll();
       setEditingEntry(null);
     },
@@ -511,16 +516,13 @@ export default function Timetables() {
   });
 
   const cancelEntryMutation = useMutation({
-    mutationFn: ({ id, entryId, reason }: { id: string; entryId: string; reason?: string }) =>
-      academicApi.cancelAnnualTimetableEntry(id, entryId, reason),
+    mutationFn: ({ instanceId, reason }: { instanceId: string; reason?: string }) =>
+      academicApi.cancelWeeklyInstance(instanceId, reason),
     onSuccess: (entry, variables) => {
       toast({
         title: 'Cours annulé',
         description: 'Le cours a été annulé.',
       });
-      updateTimetableEntriesCache(variables.id, (entries) =>
-        entries.map((item) => (item.id === entry.id ? entry : item)),
-      );
       invalidateAll();
       setEditingEntry(null);
     },
@@ -634,9 +636,13 @@ export default function Timetables() {
 
     if (entryMode === 'edit' && editingEntry) {
       updateEntryMutation.mutate({
-        id: selectedTimetable.id,
-        entryId: editingEntry.id,
-        payload,
+        instanceId: editingEntry.id,
+        payload: {
+          dayOfWeek: entryForm.dayOfWeek,
+          startTime: entryForm.startTime,
+          endTime: entryForm.endTime,
+          roomId: entryForm.roomId || undefined,
+        },
       });
       return;
     }
@@ -648,13 +654,18 @@ export default function Timetables() {
   };
 
   const renderEventContent = (content: EventContentArg) => {
-    const entry = content.event.extendedProps.entry as AnnualTimetableEntry;
+    const entry = content.event.extendedProps.entry as any;
+    if (!entry) {
+      return <div className="text-[11px]">Cours</div>;
+    }
     const status = entry.status || 'SCHEDULED';
     const isCancelled = entry.status === 'CANCELLED';
+    const roomData = entry.room;
+    const buildingName = roomData?.buildingName || (roomData as any)?.building?.name;
     return (
       <div className={cn("flex flex-col gap-0.5 text-[11px] leading-tight", isCancelled ? "text-red-900" : "")}>
         <div className="flex items-center gap-1">
-          <span className="font-semibold truncate">{entry.subject.name}</span>
+          <span className="font-semibold truncate">{entry.subject?.name || 'Cours'}</span>
           <span className={cn("text-[9px] px-1 rounded-full", COURSE_STATUS_COLORS[status])}>
             {COURSE_STATUS_LABELS_RECORD[status]}
           </span>
@@ -663,43 +674,29 @@ export default function Timetables() {
           {(entry.teacher?.firstName || entry.teacher?.name)
             ? `${entry.teacher?.firstName ?? ''} ${entry.teacher?.name ?? ''}`.trim()
             : 'Enseignant'}
-          {entry.room?.buildingName ? ` · ${entry.room.buildingName}` : ''}
-          {entry.room?.name ? ` · ${entry.room.name}` : ''}
+          {buildingName ? ` · ${buildingName}` : ''}
+          {roomData?.name ? ` · ${roomData.name}` : ''}
         </span>
       </div>
     );
   };
 
   const handleEventDrop = (info: EventDropArg) => {
-    const entry = info.event.extendedProps.entry as AnnualTimetableEntry;
+    const entry = info.event.extendedProps.entry as any;
     const start = info.event.start;
     const end = info.event.end;
-    if (!start || !end || !selectedTimetable) {
+    if (!start || !end) {
       info.revert();
       return;
     }
 
     updateEntryMutation.mutate(
       {
-        id: selectedTimetable.id,
-        entryId: entry.id,
+        instanceId: entry.id,
         payload: {
-          classId: entry.classId,
-          subjectId: entry.subjectId,
-          teacherId: entry.teacherId,
-          roomId: entry.roomId ?? undefined,
-          semesterId: entry.semesterId ?? undefined,
           dayOfWeek: toWeekDay(start),
           startTime: formatTime(start),
           endTime: formatTime(end),
-          dateStart:
-            availableSemesters.find((semester) => semester.id === entry.semesterId)?.startDate ??
-            selectedAcademicYear?.startDate ??
-            format(new Date(), 'yyyy-MM-dd'),
-          dateEnd:
-            availableSemesters.find((semester) => semester.id === entry.semesterId)?.endDate ??
-            selectedAcademicYear?.endDate ??
-            format(new Date(), 'yyyy-MM-dd'),
         },
       },
       {
@@ -711,35 +708,20 @@ export default function Timetables() {
   };
 
   const handleEventResize = (info: EventResizeDoneArg) => {
-    const entry = info.event.extendedProps.entry as AnnualTimetableEntry;
+    const entry = info.event.extendedProps.entry as any;
     const start = info.event.start;
     const end = info.event.end;
-    if (!start || !end || !selectedTimetable) {
+    if (!start || !end) {
       info.revert();
       return;
     }
 
     updateEntryMutation.mutate(
       {
-        id: selectedTimetable.id,
-        entryId: entry.id,
+        instanceId: entry.id,
         payload: {
-          classId: entry.classId,
-          subjectId: entry.subjectId,
-          teacherId: entry.teacherId,
-          roomId: entry.roomId ?? undefined,
-          semesterId: entry.semesterId ?? undefined,
-          dayOfWeek: toWeekDay(start),
           startTime: formatTime(start),
           endTime: formatTime(end),
-          dateStart:
-            availableSemesters.find((semester) => semester.id === entry.semesterId)?.startDate ??
-            selectedAcademicYear?.startDate ??
-            format(new Date(), 'yyyy-MM-dd'),
-          dateEnd:
-            availableSemesters.find((semester) => semester.id === entry.semesterId)?.endDate ??
-            selectedAcademicYear?.endDate ??
-            format(new Date(), 'yyyy-MM-dd'),
         },
       },
       {
@@ -837,8 +819,9 @@ export default function Timetables() {
         filteredEntries.length,
         selectedSemesterId,
         selectedRoomId,
+        currentWeekStart,
       ].join('-'),
-    [filteredEntries.length, selectedRoomId, selectedSemesterId, selectedTimetable?.id],
+    [currentWeekStart, filteredEntries.length, selectedRoomId, selectedSemesterId, selectedTimetable?.id],
   );
 
   const selectedAcademicYear = useMemo(
@@ -1046,6 +1029,7 @@ export default function Timetables() {
                   right: 'dayGridMonth,timeGridWeek,timeGridDay',
                 }}
                 initialView="timeGridWeek"
+                initialDate={currentWeekStart ? new Date(currentWeekStart) : undefined}
                 nowIndicator
                 editable
                 selectable
@@ -1065,13 +1049,16 @@ export default function Timetables() {
                       }
                     : undefined
                 }
-                datesSet={({ view }) => {
+                datesSet={({ view, start }) => {
                   if (view.type === 'timeGridWeek' || view.type === 'timeGridDay') {
-                    const start = view.activeStart;
-                    const startDateStr = start.toISOString().split('T')[0];
-                    if (startDateStr !== currentWeekStart) {
-                      setCurrentWeekStart(startDateStr);
-                    }
+                    const startDate = view.activeStart || start;
+                    const startDateStr = new Date(startDate).toISOString().split('T')[0];
+                    setCurrentWeekStart((prev) => {
+                      if (prev !== startDateStr) {
+                        return startDateStr;
+                      }
+                      return prev;
+                    });
                   }
                 }}
                 height="auto"
@@ -1425,10 +1412,8 @@ export default function Timetables() {
                         variant="default"
                         size="sm"
                         onClick={() => {
-                          if (!selectedTimetable) return;
                           updateEntryStatusMutation.mutate({
-                            id: selectedTimetable.id,
-                            entryId: statusToChange.entry.id,
+                            instanceId: statusToChange.entry.id,
                             status: 'SCHEDULED',
                           });
                           setStatusToChange(null);
@@ -1444,19 +1429,17 @@ export default function Timetables() {
                         variant={statusToChange.status === status ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => {
-                          if (!selectedTimetable) return;
-                          if (status === 'CANCELLED') {
-                            setCancelReason('');
-                            setStatusToChange({ entry: statusToChange.entry, status });
-                          } else {
-                            updateEntryStatusMutation.mutate({
-                              id: selectedTimetable.id,
-                              entryId: statusToChange.entry.id,
-                              status,
-                            });
-                            setStatusToChange(null);
-                          }
-                        }}
+                            if (status === 'CANCELLED') {
+                              setCancelReason('');
+                              setStatusToChange({ entry: statusToChange.entry, status });
+                            } else {
+                              updateEntryStatusMutation.mutate({
+                                instanceId: statusToChange.entry.id,
+                                status,
+                              });
+                              setStatusToChange(null);
+                            }
+                          }}
                       >
                         {COURSE_STATUS_LABELS_RECORD[status]}
                       </Button>
@@ -1480,10 +1463,9 @@ export default function Timetables() {
             {statusToChange?.status === 'CANCELLED' && (
               <Button
                 onClick={() => {
-                  if (selectedTimetable && statusToChange) {
+                  if (statusToChange) {
                     cancelEntryMutation.mutate({
-                      id: selectedTimetable.id,
-                      entryId: statusToChange.entry.id,
+                      instanceId: statusToChange.entry.id,
                       reason: cancelReason,
                     });
                     setStatusToChange(null);

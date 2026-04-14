@@ -68,16 +68,25 @@ export default function TeacherTimetable() {
     setSelectedSemesterId(optionsQuery.data.currentSemesterId ?? '');
   }, [optionsQuery.data]);
 
+  useEffect(() => {
+    if (!currentWeekStart) {
+      const now = new Date();
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(now.getDate() - now.getDay() + 1);
+      const startDateStr = startOfWeek.toISOString().split('T')[0];
+      setCurrentWeekStart(startDateStr);
+    }
+  }, [currentWeekStart]);
+
   const entriesQuery = useQuery({
-    queryKey: ['teacher', 'timetable', selectedAcademicYearId, selectedSemesterId, selectedClassId, currentWeekStart],
+    queryKey: ['teacher', 'timetable', selectedAcademicYearId, selectedClassId, currentWeekStart],
     queryFn: () =>
       teacherApi.fetchTimetable({
-        academicYearId: selectedAcademicYearId,
-        semesterId: selectedSemesterId,
+        academicYearId: selectedAcademicYearId || undefined,
         weekStartDate: currentWeekStart || undefined,
         ...(selectedClassId === 'all' ? {} : { classId: selectedClassId }),
       }),
-    enabled: Boolean(selectedAcademicYearId),
+    enabled: Boolean(currentWeekStart),
     retry: false,
   });
 
@@ -108,34 +117,49 @@ export default function TeacherTimetable() {
     [options?.semesters, selectedSemesterId],
   );
 
-  const events = useMemo(
-    () =>
-      entries.map((entry) => ({
-        id: entry.id,
-        title: `${entry.subject.name} · ${entry.class.name}`,
-        daysOfWeek: [toCalendarDay(entry.dayOfWeek)],
-        startTime: entry.startTime,
-        endTime: entry.endTime,
-        startRecur: entry.dateStart,
-        endRecur: entry.dateEnd,
-        backgroundColor: entry.status === 'CANCELLED' ? '#fecaca' : undefined,
-        extendedProps: entry,
-      })),
+const events = useMemo(
+    () => {
+      const dayOfWeekMap: Record<string, number> = {
+        'lundi': 1, 'mardi': 2, 'mercredi': 3, 'jeudi': 4, 'vendredi': 5, 'samedi': 6, 'dimanche': 0
+      };
+      
+      return entries.map((entry: any) => {
+        const dayNum = dayOfWeekMap[entry.dayOfWeek?.toLowerCase()] ?? 1;
+        
+        return {
+          id: entry.id,
+          title: `${entry.subject?.name || 'Cours'} · ${entry.class?.name || 'Classe'}`,
+          daysOfWeek: [dayNum],
+          startTime: entry.startTime,
+          endTime: entry.endTime,
+          startRecur: entry.dateStart || new Date().toISOString().split('T')[0],
+          endRecur: entry.dateEnd || new Date(Date.now() + 365*24*60*60*1000).toISOString().split('T')[0],
+          backgroundColor: entry.status === 'CANCELLED' ? '#fecaca' : undefined,
+          borderColor: entry.status === 'CANCELLED' ? '#fca5a5' : undefined,
+          textColor: entry.status === 'CANCELLED' ? '#7f1d1d' : undefined,
+          extendedProps: entry,
+        };
+      });
+    },
     [entries],
   );
 
   const renderEventContent = (content: EventContentArg) => {
     const entry = content.event.extendedProps as TeacherTimetableEntry;
+    if (!entry || !entry.subject) {
+      return <div className="text-[11px]">Cours</div>;
+    }
     const status = entry.status || 'SCHEDULED';
+    const isCancelled = entry.status === 'CANCELLED';
     return (
-      <div className="flex flex-col gap-0.5 text-[11px] leading-tight">
+      <div className={cn("flex flex-col gap-0.5 text-[11px] leading-tight", isCancelled ? "text-red-900" : "")}>
         <div className="flex items-center gap-1">
           <span className="font-semibold truncate">{entry.subject.name}</span>
           <span className={cn("text-[9px] px-1 rounded-full", COURSE_STATUS_COLORS[status])}>
             {COURSE_STATUS_LABELS_RECORD[status]}
           </span>
         </div>
-        <span className="text-[10px] text-white">
+        <span className={cn("text-[10px]", isCancelled ? "text-red-800" : "text-white")}>
           {entry.class.name}
           {entry.room ? ` · ${entry.room.buildingName || ''} · ${entry.room.name}` : ''}
         </span>
@@ -284,13 +308,16 @@ export default function TeacherTimetable() {
               eventTimeFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
               eventContent={renderEventContent}
               eventClick={handleEventClick}
-              datesSet={({ view }) => {
+              datesSet={({ view, start }) => {
                 if (view.type === 'timeGridWeek' || view.type === 'timeGridDay') {
-                  const start = view.activeStart;
-                  const startDateStr = start.toISOString().split('T')[0];
-                  if (startDateStr !== currentWeekStart) {
-                    setCurrentWeekStart(startDateStr);
-                  }
+                  const startDate = view.activeStart || start;
+                  const startDateStr = new Date(startDate).toISOString().split('T')[0];
+                  setCurrentWeekStart((prev) => {
+                    if (prev !== startDateStr) {
+                      return startDateStr;
+                    }
+                    return prev;
+                  });
                 }
               }}
             />
