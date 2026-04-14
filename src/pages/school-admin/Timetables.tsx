@@ -12,6 +12,8 @@ import { format } from 'date-fns';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Calendar, Plus, Trash2, Edit, XCircle, Clock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { useTimetableSync } from '@/hooks/useTimetableSync';
 import {
   academicApi,
   type CreateAnnualTimetablePayload,
@@ -174,6 +176,12 @@ const createDefaultTimetableForm = (
 export default function Timetables() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  
+  useTimetableSync(user?.schoolId, () => {
+    void queryClient.invalidateQueries({ queryKey: ['school-admin', 'annual-timetables'] });
+  });
+
   const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string>(CURRENT_ACADEMIC_SELECTION);
   const [selectedLevelId, setSelectedLevelId] = useState('all');
   const [selectedRoomId, setSelectedRoomId] = useState('all');

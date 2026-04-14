@@ -15,6 +15,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { useTimetableSync } from '@/hooks/useTimetableSync';
 import { teacherApi } from '@/services/teacher';
 import type { TeacherTimetableEntry, TeacherTimetableOptions } from '@/types/teacher';
 import { cn } from '@/lib/utils';
@@ -55,6 +57,11 @@ export default function TeacherTimetable() {
   const [cancelReason, setCancelReason] = useState('');
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { user } = useAuth();
+  
+  useTimetableSync(user?.schoolId, () => {
+    void queryClient.invalidateQueries({ queryKey: ['teacher', 'timetable'] });
+  });
 
   const optionsQuery = useQuery({
     queryKey: ['teacher', 'timetable', 'options'],
@@ -116,6 +123,20 @@ export default function TeacherTimetable() {
     () => options?.semesters.find((semester) => semester.id === selectedSemesterId) ?? null,
     [options?.semesters, selectedSemesterId],
   );
+
+  const validRange = useMemo(() => {
+    if (!selectedSemester?.startDate) return undefined;
+    const start = selectedSemester.startDate.split('T')[0];
+    let end: string | undefined = undefined;
+    
+    if (selectedSemester.endDate) {
+      const endDateObj = new Date(selectedSemester.endDate);
+      endDateObj.setDate(endDateObj.getDate() + 1); // Exclusive end bound
+      end = endDateObj.toISOString().split('T')[0];
+    }
+    
+    return { start, end };
+  }, [selectedSemester]);
 
 const events = useMemo(
     () => {
@@ -299,6 +320,7 @@ const events = useMemo(
               }}
               nowIndicator
               events={events}
+              validRange={validRange}
               height="auto"
               slotMinTime="07:00:00"
               slotMaxTime="19:00:00"

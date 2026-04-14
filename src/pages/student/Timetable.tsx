@@ -6,6 +6,8 @@ import interactionPlugin from '@fullcalendar/interaction';
 import { type EventContentArg } from '@fullcalendar/core';
 import frLocale from '@fullcalendar/core/locales/fr';
 import { studentApi, type StudentTimetable, type TimetableEntry } from '@/lib/api-student';
+import { useAuth } from '@/contexts/AuthContext';
+import { useTimetableSync } from '@/hooks/useTimetableSync';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -86,6 +88,12 @@ export default function StudentTimetable() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentWeekStart, setCurrentWeekStart] = useState<string>('');
+  const [syncCounter, setSyncCounter] = useState(0);
+  const { user } = useAuth();
+  
+  useTimetableSync(user?.schoolId, () => {
+    setSyncCounter(c => c + 1);
+  });
 
   useEffect(() => {
     const now = new Date();
@@ -112,7 +120,7 @@ export default function StudentTimetable() {
     };
 
     fetchData();
-  }, [currentWeekStart]);
+  }, [currentWeekStart, syncCounter]);
 
   const handleDatesSet = ({ view, start }: { view: any; start: Date }) => {
     if (view.type === 'timeGridWeek' || view.type === 'timeGridDay') {
@@ -126,6 +134,20 @@ export default function StudentTimetable() {
       });
     }
   };
+
+  const validRange = useMemo(() => {
+    if (!timetable?.semester?.startDate) return undefined;
+    const start = timetable.semester.startDate.split('T')[0];
+    let end: string | undefined = undefined;
+    
+    if (timetable.semester.endDate) {
+      const endDateObj = new Date(timetable.semester.endDate);
+      endDateObj.setDate(endDateObj.getDate() + 1); // Exclusive end bound
+      end = endDateObj.toISOString().split('T')[0];
+    }
+    
+    return { start, end };
+  }, [timetable?.semester]);
 
   const events = useMemo(() => {
     if (!timetable?.entries) return [];
@@ -342,6 +364,7 @@ export default function StudentTimetable() {
               events={events}
               eventContent={renderEventContent}
               datesSet={handleDatesSet}
+              validRange={validRange}
               height="auto"
               slotMinTime="07:00:00"
               slotMaxTime="19:00:00"

@@ -43,10 +43,14 @@ export interface StudentTimetable {
   academicYear: {
     id: string;
     name: string;
+    startDate?: string;
+    endDate?: string;
   };
   semester: {
     id: string;
     name: string;
+    startDate?: string;
+    endDate?: string;
   };
   class: {
     id: string;
