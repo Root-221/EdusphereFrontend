@@ -4,8 +4,23 @@ export type ClassStatus = 'active' | 'inactive' | 'archived';
 export type LevelStatus = 'active' | 'inactive' | 'archived';
 export type SubjectStatus = 'active' | 'inactive';
 export type TimetableStatus = 'active' | 'inactive' | 'draft';
+export type CourseStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
 
 export const DAYS_OF_WEEK = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'] as const;
+
+export const COURSE_STATUS_LABELS: Record<CourseStatus, string> = {
+  SCHEDULED: 'Planifié',
+  IN_PROGRESS: 'En cours',
+  COMPLETED: 'Terminé',
+  CANCELLED: 'Annulé',
+};
+
+export const COURSE_STATUS_COLORS: Record<CourseStatus, string> = {
+  SCHEDULED: 'bg-blue-100 text-blue-800',
+  IN_PROGRESS: 'bg-yellow-100 text-yellow-800',
+  COMPLETED: 'bg-green-100 text-green-800',
+  CANCELLED: 'bg-red-100 text-red-800',
+};
 
 export interface AcademicYear {
   id: string;
@@ -202,6 +217,10 @@ export interface AnnualTimetableEntry {
   endTime: string;
   dateStart: string;
   dateEnd: string;
+  status: CourseStatus;
+  cancelledAt: string | null;
+  cancelledBy: string | null;
+  cancellationReason: string | null;
   subjectId: string;
   subject: {
     id: string;

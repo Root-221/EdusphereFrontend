@@ -47,8 +47,13 @@ export const teacherApi = {
     return extractData<TeacherTimetableOptions>(response);
   },
 
-  async fetchTimetable(params?: { academicYearId?: string; semesterId?: string; classId?: string }): Promise<TeacherTimetableEntry[]> {
+  async fetchTimetable(params?: { academicYearId?: string; semesterId?: string; classId?: string; weekStartDate?: string }): Promise<TeacherTimetableEntry[]> {
     const response = await api.get(`/teacher/timetable${buildQueryString(params)}`);
     return extractData<TeacherTimetableEntry[]>(response);
+  },
+
+  async cancelCourse(courseId: string, reason?: string): Promise<{ id: string; status: string; cancelledAt: string; cancellationReason: string | null }> {
+    const response = await api.post(`/teacher/courses/${courseId}/cancel`, { reason });
+    return extractData(response);
   },
 };

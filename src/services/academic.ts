@@ -5,6 +5,7 @@ import type {
   AnnualTimetableEntry,
   AnnualTimetableOptions,
   ClassStatus,
+  CourseStatus,
   Level,
   LevelStatus,
   SchoolClass,
@@ -445,6 +446,24 @@ export const academicApi = {
   async deleteAnnualTimetableEntry(id: string, entryId: string): Promise<{ id: string; annualTimetableId: string }> {
     const response = await api.delete(`/school-admin/annual-timetables/${id}/entries/${entryId}`);
     return extractData<{ id: string; annualTimetableId: string }>(response);
+  },
+
+  async updateAnnualTimetableEntryStatus(
+    id: string,
+    entryId: string,
+    status: CourseStatus,
+  ): Promise<AnnualTimetableEntry> {
+    const response = await api.patch(`/school-admin/annual-timetables/${id}/entries/${entryId}/status`, { status });
+    return extractData<AnnualTimetableEntry>(response);
+  },
+
+  async cancelAnnualTimetableEntry(
+    id: string,
+    entryId: string,
+    reason?: string,
+  ): Promise<AnnualTimetableEntry> {
+    const response = await api.post(`/school-admin/annual-timetables/${id}/entries/${entryId}/cancel`, { reason });
+    return extractData<AnnualTimetableEntry>(response);
   },
 };
 

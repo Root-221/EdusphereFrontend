@@ -49,6 +49,9 @@ export interface TeacherTimetableEntry {
   endTime: string;
   dateStart: string;
   dateEnd: string;
+  status: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+  cancelledAt: string | null;
+  cancellationReason: string | null;
   subject: { id: string; name: string };
   class: { id: string; name: string; level: string };
   room: { id: string; name: string; buildingName: string } | null;

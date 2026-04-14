@@ -3,14 +3,35 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
+import { type EventClickArg, type EventContentArg } from '@fullcalendar/core';
 import frLocale from '@fullcalendar/core/locales/fr';
-import { useQuery } from '@tanstack/react-query';
-import { Calendar, Clock, Users, BookOpen, GraduationCap } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Calendar, Clock, Users, BookOpen, GraduationCap, XCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { useToast } from '@/hooks/use-toast';
 import { teacherApi } from '@/services/teacher';
 import type { TeacherTimetableEntry, TeacherTimetableOptions } from '@/types/teacher';
+import { cn } from '@/lib/utils';
+
+const COURSE_STATUS_LABELS_RECORD: Record<string, string> = {
+  SCHEDULED: 'Planifié',
+  IN_PROGRESS: 'En cours',
+  COMPLETED: 'Terminé',
+  CANCELLED: 'Annulé',
+};
+
+const COURSE_STATUS_COLORS: Record<string, string> = {
+  SCHEDULED: 'bg-blue-100 text-blue-800',
+  IN_PROGRESS: 'bg-yellow-100 text-yellow-800',
+  COMPLETED: 'bg-green-100 text-green-800',
+  CANCELLED: 'bg-red-100 text-red-800',
+};
 
 const toCalendarDay = (dayOfWeek: string) => {
   const mapping: Record<string, number> = {
@@ -29,6 +50,11 @@ export default function TeacherTimetable() {
   const [selectedAcademicYearId, setSelectedAcademicYearId] = useState('');
   const [selectedSemesterId, setSelectedSemesterId] = useState('');
   const [selectedClassId, setSelectedClassId] = useState('all');
+  const [currentWeekStart, setCurrentWeekStart] = useState<string>('');
+  const [courseToCancel, setCourseToCancel] = useState<TeacherTimetableEntry | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const optionsQuery = useQuery({
     queryKey: ['teacher', 'timetable', 'options'],
@@ -43,11 +69,12 @@ export default function TeacherTimetable() {
   }, [optionsQuery.data]);
 
   const entriesQuery = useQuery({
-    queryKey: ['teacher', 'timetable', selectedAcademicYearId, selectedSemesterId, selectedClassId],
+    queryKey: ['teacher', 'timetable', selectedAcademicYearId, selectedSemesterId, selectedClassId, currentWeekStart],
     queryFn: () =>
       teacherApi.fetchTimetable({
         academicYearId: selectedAcademicYearId,
         semesterId: selectedSemesterId,
+        weekStartDate: currentWeekStart || undefined,
         ...(selectedClassId === 'all' ? {} : { classId: selectedClassId }),
       }),
     enabled: Boolean(selectedAcademicYearId),
@@ -56,6 +83,20 @@ export default function TeacherTimetable() {
 
   const options: TeacherTimetableOptions | undefined = optionsQuery.data;
   const entries: TeacherTimetableEntry[] = entriesQuery.data ?? [];
+
+  const cancelCourseMutation = useMutation({
+    mutationFn: ({ courseId, reason }: { courseId: string; reason?: string }) =>
+      teacherApi.cancelCourse(courseId, reason),
+    onSuccess: () => {
+      toast({ title: 'Cours annulé', description: 'Le cours a été annulé avec succès.' });
+      queryClient.invalidateQueries({ queryKey: ['teacher', 'timetable'] });
+      setCourseToCancel(null);
+      setCancelReason('');
+    },
+    onError: () => {
+      toast({ title: 'Erreur', description: 'Impossible d\'annuler ce cours.', variant: 'destructive' });
+    },
+  });
 
   const teacherClasses = useMemo(
     () => (options?.classes ?? []).filter((cls) => cls.academicYearId === selectedAcademicYearId),
@@ -77,10 +118,37 @@ export default function TeacherTimetable() {
         endTime: entry.endTime,
         startRecur: entry.dateStart,
         endRecur: entry.dateEnd,
+        backgroundColor: entry.status === 'CANCELLED' ? '#fecaca' : undefined,
         extendedProps: entry,
       })),
     [entries],
   );
+
+  const renderEventContent = (content: EventContentArg) => {
+    const entry = content.event.extendedProps as TeacherTimetableEntry;
+    const status = entry.status || 'SCHEDULED';
+    return (
+      <div className="flex flex-col gap-0.5 text-[11px] leading-tight">
+        <div className="flex items-center gap-1">
+          <span className="font-semibold truncate">{entry.subject.name}</span>
+          <span className={cn("text-[9px] px-1 rounded-full", COURSE_STATUS_COLORS[status])}>
+            {COURSE_STATUS_LABELS_RECORD[status]}
+          </span>
+        </div>
+        <span className="text-[10px] text-white">
+          {entry.class.name}
+          {entry.room ? ` · ${entry.room.buildingName || ''} · ${entry.room.name}` : ''}
+        </span>
+      </div>
+    );
+  };
+
+  const handleEventClick = (info: EventClickArg) => {
+    const entry = info.event.extendedProps as TeacherTimetableEntry;
+    if (entry.status !== 'CANCELLED' && entry.status !== 'COMPLETED') {
+      setCourseToCancel(entry);
+    }
+  };
 
   const totalCourses = entries.length;
   const activeDays = new Set(entries.map((entry) => entry.dayOfWeek)).size;
@@ -214,18 +282,16 @@ export default function TeacherTimetable() {
               dayHeaderFormat={{ weekday: 'long' }}
               slotLabelFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
               eventTimeFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
-              eventContent={(content) => {
-                const entry = content.event.extendedProps as TeacherTimetableEntry;
-                return (
-                  <div className="flex flex-col text-[11px] leading-tight">
-                    <span className="font-semibold">{entry.subject.name}</span>
-                    <span className="text-[10px] text-white/90">
-                      {entry.class.name}
-                      {entry.room?.buildingName ? ` · ${entry.room.buildingName}` : ''}
-                      {entry.room?.name ? ` · ${entry.room.name}` : ''}
-                    </span>
-                  </div>
-                );
+              eventContent={renderEventContent}
+              eventClick={handleEventClick}
+              datesSet={({ view }) => {
+                if (view.type === 'timeGridWeek' || view.type === 'timeGridDay') {
+                  const start = view.activeStart;
+                  const startDateStr = start.toISOString().split('T')[0];
+                  if (startDateStr !== currentWeekStart) {
+                    setCurrentWeekStart(startDateStr);
+                  }
+                }
               }}
             />
           </CardContent>
@@ -243,6 +309,54 @@ export default function TeacherTimetable() {
           ))}
         </div>
       )}
+
+      <Dialog open={Boolean(courseToCancel)} onOpenChange={(open) => !open && setCourseToCancel(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Annuler le cours</DialogTitle>
+            <DialogDescription>
+              Vous êtes sur le point d'annuler le cours suivant. Cette action peut être irréversible.
+            </DialogDescription>
+          </DialogHeader>
+          {courseToCancel && (
+            <div className="space-y-3 py-3">
+              <div className="text-sm">
+                <strong>{courseToCancel.subject.name}</strong> - {courseToCancel.class.name}
+              </div>
+              <div className="text-sm text-muted-foreground">
+                {courseToCancel.dayOfWeek} · {courseToCancel.startTime} - {courseToCancel.endTime}
+              </div>
+              <div className="space-y-2">
+                <Label>Raison de l'annulation (optionnel)</Label>
+                <Input
+                  placeholder="Entrez la raison de l'annulation"
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCourseToCancel(null)}>
+              Fermer
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (courseToCancel) {
+                  cancelCourseMutation.mutate({
+                    courseId: courseToCancel.id,
+                    reason: cancelReason,
+                  });
+                }
+              }}
+              disabled={cancelCourseMutation.isPending}
+            >
+              {cancelCourseMutation.isPending ? 'Annulation...' : 'Confirmer l\'annulation'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

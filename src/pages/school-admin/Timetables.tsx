@@ -7,7 +7,7 @@ import { type EventContentArg } from '@fullcalendar/core';
 import frLocale from '@fullcalendar/core/locales/fr';
 import { format } from 'date-fns';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Calendar, Plus, Trash2, Edit } from 'lucide-react';
+import { Calendar, Plus, Trash2, Edit, XCircle, Clock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   academicApi,
@@ -26,6 +26,8 @@ import type {
   AnnualTimetable,
   AnnualTimetableEntry,
   AnnualTimetableOptions,
+  CourseStatus,
+  COURSE_STATUS_LABELS,
   SchoolClass,
 } from '@/types/academic';
 import { Badge } from '@/components/ui/badge';
@@ -36,7 +38,26 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from '@/components/ui/label';
 import { DataList, type Column } from '@/components/ui/data-list';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+
+const COURSE_STATUS_LABELS_RECORD: Record<string, string> = {
+  SCHEDULED: 'Planifié',
+  IN_PROGRESS: 'En cours',
+  COMPLETED: 'Terminé',
+  CANCELLED: 'Annulé',
+};
+
+const COURSE_STATUS_COLORS: Record<string, string> = {
+  SCHEDULED: 'bg-blue-100 text-blue-800',
+  IN_PROGRESS: 'bg-yellow-100 text-yellow-800',
+  COMPLETED: 'bg-green-100 text-green-800',
+  CANCELLED: 'bg-red-100 text-red-800',
+};
+
+const CANCELLED_BG = '#fecaca';
+const CANCELLED_BORDER = '#fca5a5';
+const CANCELLED_TEXT = '#7f1d1d';
 
 const WEEKDAY_OPTIONS = [
   { value: 'Lundi', label: 'Lundi', fc: 1 },
@@ -177,6 +198,9 @@ export default function Timetables() {
     semesterId: '',
   });
   const [editingEntry, setEditingEntry] = useState<AnnualTimetableEntry | null>(null);
+  const [statusToChange, setStatusToChange] = useState<{ entry: AnnualTimetableEntry; status: string } | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [currentWeekStart, setCurrentWeekStart] = useState<string>('');
 
   const optionsQuery = useQuery({
     queryKey: ['school-admin', 'annual-timetable-options'],
@@ -190,12 +214,12 @@ export default function Timetables() {
   );
 
   const timetablesQuery = useQuery({
-    queryKey: ['school-admin', 'annual-timetables', resolvedAcademicYearId],
+    queryKey: ['school-admin', 'annual-timetables', resolvedAcademicYearId, currentWeekStart],
     queryFn: () =>
       academicApi.fetchAnnualTimetables(
         resolvedAcademicYearId && resolvedAcademicYearId !== CURRENT_ACADEMIC_SELECTION
-          ? { academicYearId: resolvedAcademicYearId }
-          : undefined,
+          ? { academicYearId: resolvedAcademicYearId, weekStartDate: currentWeekStart || undefined }
+          : { weekStartDate: currentWeekStart || undefined },
       ),
     retry: false,
   });
@@ -464,6 +488,50 @@ export default function Timetables() {
     },
   });
 
+  const updateEntryStatusMutation = useMutation({
+    mutationFn: ({ id, entryId, status }: { id: string; entryId: string; status: string }) =>
+      academicApi.updateAnnualTimetableEntryStatus(id, entryId, status as any),
+    onSuccess: (entry, variables) => {
+      toast({
+        title: 'Statut mis à jour',
+        description: `Le cours est maintenant ${entry.status}`,
+      });
+      updateTimetableEntriesCache(variables.id, (entries) =>
+        entries.map((item) => (item.id === entry.id ? entry : item)),
+      );
+      invalidateAll();
+      setEditingEntry(null);
+    },
+    onError: (error) => {
+      toast({
+        title: 'Erreur',
+        description: getApiErrorMessage(error, 'Impossible de modifier le statut.'),
+      });
+    },
+  });
+
+  const cancelEntryMutation = useMutation({
+    mutationFn: ({ id, entryId, reason }: { id: string; entryId: string; reason?: string }) =>
+      academicApi.cancelAnnualTimetableEntry(id, entryId, reason),
+    onSuccess: (entry, variables) => {
+      toast({
+        title: 'Cours annulé',
+        description: 'Le cours a été annulé.',
+      });
+      updateTimetableEntriesCache(variables.id, (entries) =>
+        entries.map((item) => (item.id === entry.id ? entry : item)),
+      );
+      invalidateAll();
+      setEditingEntry(null);
+    },
+    onError: (error) => {
+      toast({
+        title: 'Erreur',
+        description: getApiErrorMessage(error, 'Impossible d\'annuler ce cours.'),
+      });
+    },
+  });
+
   const handleOpenTimetableDialog = (timetable?: AnnualTimetable) => {
     const form = createDefaultTimetableForm(options, resolvedAcademicYearId);
     if (timetable) {
@@ -581,10 +649,17 @@ export default function Timetables() {
 
   const renderEventContent = (content: EventContentArg) => {
     const entry = content.event.extendedProps.entry as AnnualTimetableEntry;
+    const status = entry.status || 'SCHEDULED';
+    const isCancelled = entry.status === 'CANCELLED';
     return (
-      <div className="flex flex-col gap-0.5 text-[11px] leading-tight">
-        <span className="font-semibold">{entry.subject.name}</span>
-        <span className="text-[10px] text-white/90">
+      <div className={cn("flex flex-col gap-0.5 text-[11px] leading-tight", isCancelled ? "text-red-900" : "")}>
+        <div className="flex items-center gap-1">
+          <span className="font-semibold truncate">{entry.subject.name}</span>
+          <span className={cn("text-[9px] px-1 rounded-full", COURSE_STATUS_COLORS[status])}>
+            {COURSE_STATUS_LABELS_RECORD[status]}
+          </span>
+        </div>
+        <span className={cn("text-[10px]", isCancelled ? "text-red-800" : "text-white")}>
           {(entry.teacher?.firstName || entry.teacher?.name)
             ? `${entry.teacher?.firstName ?? ''} ${entry.teacher?.name ?? ''}`.trim()
             : 'Enseignant'}
@@ -735,19 +810,23 @@ export default function Timetables() {
 
   const events = useMemo(
     () =>
-      filteredEntries.map((entry) => ({
-        id: entry.id,
-        title: entry.subject.name,
-        daysOfWeek: [toCalendarDay(entry.dayOfWeek)],
-        startTime: entry.startTime,
-        endTime: entry.endTime,
-        startRecur: entry.dateStart,
-        endRecur: entry.dateEnd,
-        backgroundColor: getSubjectColor(entry.subjectId),
-        borderColor: getSubjectColor(entry.subjectId),
-        textColor: '#ffffff',
-        extendedProps: { entry },
-      })),
+      filteredEntries.map((entry) => {
+        const isCancelled = entry.status === 'CANCELLED';
+        const baseColor = getSubjectColor(entry.subjectId);
+        return {
+          id: entry.id,
+          title: entry.subject.name,
+          daysOfWeek: [toCalendarDay(entry.dayOfWeek)],
+          startTime: entry.startTime,
+          endTime: entry.endTime,
+          startRecur: entry.dateStart,
+          endRecur: entry.dateEnd,
+          backgroundColor: isCancelled ? CANCELLED_BG : baseColor,
+          borderColor: isCancelled ? CANCELLED_BORDER : baseColor,
+          textColor: isCancelled ? CANCELLED_TEXT : '#000000',
+          extendedProps: { entry },
+        };
+      }),
     [filteredEntries],
   );
 
@@ -986,6 +1065,15 @@ export default function Timetables() {
                       }
                     : undefined
                 }
+                datesSet={({ view }) => {
+                  if (view.type === 'timeGridWeek' || view.type === 'timeGridDay') {
+                    const start = view.activeStart;
+                    const startDateStr = start.toISOString().split('T')[0];
+                    if (startDateStr !== currentWeekStart) {
+                      setCurrentWeekStart(startDateStr);
+                    }
+                  }
+                }}
                 height="auto"
                 slotMinTime="07:00:00"
                 slotMaxTime="19:00:00"
@@ -1241,16 +1329,28 @@ export default function Timetables() {
             </div>
           </div>
           <DialogFooter className="flex flex-col gap-3 sm:flex-row sm:justify-between">
-            {entryMode === 'edit' && editingEntry && (
-              <Button
-                variant="ghost"
-                className="text-destructive"
-                onClick={() => setEntryToDelete(editingEntry)}
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Supprimer le cours
-              </Button>
-            )}
+            <div className="flex gap-2">
+              {entryMode === 'edit' && editingEntry && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setStatusToChange({ entry: editingEntry, status: '' })}
+                  >
+                    <Clock className="mr-2 h-4 w-4" />
+                    Statut
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="text-destructive"
+                    onClick={() => setEntryToDelete(editingEntry)}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Supprimer
+                  </Button>
+                </>
+              )}
+            </div>
             <div className="flex flex-1 justify-end gap-2">
               <Button variant="outline" onClick={() => setIsEntryDialogOpen(false)}>
                 Annuler
@@ -1299,6 +1399,106 @@ export default function Timetables() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={Boolean(statusToChange)} onOpenChange={(open) => !open && setStatusToChange(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Changer le statut du cours</DialogTitle>
+            <DialogDescription>
+              Sélectionnez le nouveau statut pour ce cours.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            {statusToChange && (
+              <>
+                <div className="text-sm text-muted-foreground">
+                  Cours: <strong>{statusToChange.entry.subject.name}</strong> -{' '}
+                  {statusToChange.entry.dayOfWeek} {statusToChange.entry.startTime}-{statusToChange.entry.endTime}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {statusToChange.entry.status === 'COMPLETED' ? (
+                    <p className="text-sm text-muted-foreground">Vous ne pouvez pas modifier le statut d'un cours terminé.</p>
+                  ) : statusToChange.entry.status === 'CANCELLED' ? (
+                    <>
+                      <p className="text-sm text-muted-foreground mb-2">Ce cours est annulé. Vous pouvez le reprogrammer.</p>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => {
+                          if (!selectedTimetable) return;
+                          updateEntryStatusMutation.mutate({
+                            id: selectedTimetable.id,
+                            entryId: statusToChange.entry.id,
+                            status: 'SCHEDULED',
+                          });
+                          setStatusToChange(null);
+                        }}
+                      >
+                        Reprogrammer (Planifié)
+                      </Button>
+                    </>
+                  ) : (
+                    (['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'] as const).map((status) => (
+                      <Button
+                        key={status}
+                        variant={statusToChange.status === status ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => {
+                          if (!selectedTimetable) return;
+                          if (status === 'CANCELLED') {
+                            setCancelReason('');
+                            setStatusToChange({ entry: statusToChange.entry, status });
+                          } else {
+                            updateEntryStatusMutation.mutate({
+                              id: selectedTimetable.id,
+                              entryId: statusToChange.entry.id,
+                              status,
+                            });
+                            setStatusToChange(null);
+                          }
+                        }}
+                      >
+                        {COURSE_STATUS_LABELS_RECORD[status]}
+                      </Button>
+                    ))
+                  )}
+                </div>
+                {statusToChange.status === 'CANCELLED' && (
+                  <div className="space-y-2">
+                    <Label>Raison de l'annulation (optionnel)</Label>
+                    <Input
+                      placeholder="Entrez la raison de l'annulation"
+                      value={cancelReason}
+                      onChange={(e) => setCancelReason(e.target.value)}
+                    />
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            {statusToChange?.status === 'CANCELLED' && (
+              <Button
+                onClick={() => {
+                  if (selectedTimetable && statusToChange) {
+                    cancelEntryMutation.mutate({
+                      id: selectedTimetable.id,
+                      entryId: statusToChange.entry.id,
+                      reason: cancelReason,
+                    });
+                    setStatusToChange(null);
+                  }
+                }}
+              >
+                Confirmer l'annulation
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => setStatusToChange(null)}>
+              Fermer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
