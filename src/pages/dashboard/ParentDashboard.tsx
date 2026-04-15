@@ -183,7 +183,7 @@ export default function ParentDashboard() {
                       className="flex-1 gap-1"
                       onClick={(e) => {
                         e.stopPropagation();
-                        navigate('/children-grades');
+                        navigate(`/children-grades?childId=${child.id}`);
                       }}
                     >
                       <Award className="h-4 w-4" />
@@ -195,7 +195,7 @@ export default function ParentDashboard() {
                       className="flex-1 gap-1"
                       onClick={(e) => {
                         e.stopPropagation();
-                        navigate('/children-timetable');
+                        navigate(`/children-timetable?childId=${child.id}`);
                       }}
                     >
                       <Calendar className="h-4 w-4" />

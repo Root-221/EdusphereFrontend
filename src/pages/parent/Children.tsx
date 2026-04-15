@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useQuery } from '@tanstack/react-query';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import { 
   Dialog,
   DialogContent,
@@ -12,80 +12,49 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { 
-  Users,
-  Award,
-  FileText,
-  ChevronRight,
   Grid3X3,
   List,
-  Calendar,
-  Clock,
-  Wallet,
-  CheckCircle,
-  TrendingUp
+  ChevronRight,
+  Loader2,
+  BookOpen,
+  User,
+  Fingerprint,
+  MapPin,
+  Cake
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-
-// Mock children data
-const children = [
-  { 
-    id: '1', 
-    name: 'Oumar Fall', 
-    class: 'Terminale S1', 
-    average: 14.5, 
-    rank: 5, 
-    totalStudents: 35,
-    attendance: 92,
-    paymentStatus: 'paid'
-  },
-  { 
-    id: '2', 
-    name: 'Aïssatou Fall', 
-    class: '3ème A', 
-    average: 16.2, 
-    rank: 2, 
-    totalStudents: 40,
-    attendance: 96,
-    paymentStatus: 'pending'
-  },
-];
-
-const getGradeColor = (average: number) => {
-  if (average >= 14) return 'text-success';
-  if (average >= 10) return 'text-warning';
-  return 'text-destructive';
-};
-
-const getPaymentBadge = (status: string) => {
-  switch (status) {
-    case 'paid':
-      return <Badge className="bg-success/20 text-success">À jour</Badge>;
-    case 'pending':
-      return <Badge className="bg-warning/20 text-warning">En attente</Badge>;
-    case 'overdue':
-      return <Badge className="bg-destructive/20 text-destructive">En retard</Badge>;
-    default:
-      return <Badge variant="outline">{status}</Badge>;
-  }
-};
+import { parentApi } from '@/lib/api-parent';
 
 export default function Children() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  
+  const { data: profileData, isLoading } = useQuery({
+    queryKey: ['parent', 'profile'],
+    queryFn: parentApi.getProfile,
+  });
+
+  const children = profileData?.children || [];
   const [selectedChild, setSelectedChild] = useState<typeof children[0] | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const navigate = useNavigate();
 
   const handleViewDetails = (child: typeof children[0]) => {
     setSelectedChild(child);
     setIsModalOpen(true);
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex h-[400px] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div>
         <h1 className="text-xl font-bold tracking-tight">Mes Enfants</h1>
         <p className="text-sm text-muted-foreground">
-          Suivez la scolarité de vos enfants
+          Gérez l'identité et les informations de vos enfants inscrits
         </p>
       </div>
 
@@ -112,7 +81,7 @@ export default function Children() {
         </div>
       </div>
 
-      {/* GRID View (Default) */}
+      {/* GRID View */}
       {viewMode === 'grid' ? (
         <div className="grid gap-4 md:grid-cols-2">
           {children.map((child) => (
@@ -122,59 +91,40 @@ export default function Children() {
                   <div className="flex items-center gap-3">
                     <Avatar className="h-14 w-14">
                       <AvatarFallback className="bg-primary/10 text-primary font-semibold text-lg">
-                        {child.name.split(' ').map(n => n[0]).join('')}
+                        {child.firstName[0]}{child.lastName[0]}
                       </AvatarFallback>
                     </Avatar>
                     <div>
-                      <h3 className="font-semibold text-lg">{child.name}</h3>
-                      <p className="text-sm text-muted-foreground">{child.class}</p>
+                      <h3 className="font-semibold text-lg">{child.firstName} {child.lastName}</h3>
+                      <p className="text-sm text-muted-foreground">{child.class?.name || 'En attente d\'affectation'}</p>
                     </div>
                   </div>
-                  {getPaymentBadge(child.paymentStatus)}
                 </div>
                 
-                <div className="grid grid-cols-3 gap-3 mb-4">
+                <div className="grid grid-cols-2 gap-3 mb-4">
                   <div className="text-center p-3 bg-muted/50 rounded-lg">
-                    <Award className="h-4 w-4 mx-auto mb-1 text-primary" />
-                    <p className={`text-lg font-bold ${getGradeColor(child.average)}`}>{child.average}</p>
-                    <p className="text-xs text-muted-foreground">/20</p>
+                    <Fingerprint className="h-5 w-5 mx-auto mb-1 text-primary" />
+                    <p className="text-sm font-bold truncate px-1" title={child.matricule ?? 'Non attribué'}>
+                      {child.matricule ?? 'Non attribué'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Matricule</p>
                   </div>
                   <div className="text-center p-3 bg-muted/50 rounded-lg">
-                    <TrendingUp className="h-4 w-4 mx-auto mb-1 text-primary" />
-                    <p className="text-lg font-bold">{child.rank}°</p>
-                    <p className="text-xs text-muted-foreground">/{child.totalStudents}</p>
-                  </div>
-                  <div className="text-center p-3 bg-muted/50 rounded-lg">
-                    <Calendar className="h-4 w-4 mx-auto mb-1 text-primary" />
-                    <p className="text-lg font-bold">{child.attendance}%</p>
-                    <p className="text-xs text-muted-foreground">Présence</p>
+                    <BookOpen className="h-5 w-5 mx-auto mb-1 text-primary" />
+                    <p className="text-sm font-bold truncate">
+                      {child.class?.level || 'Non assigné'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Niveau</p>
                   </div>
                 </div>
 
                 <div className="flex gap-2">
                   <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="flex-1 gap-1"
-                    onClick={() => navigate('/children-grades')}
-                  >
-                    <Award className="h-4 w-4" />
-                    Notes
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="flex-1 gap-1"
-                    onClick={() => navigate('/children-bulletins')}
-                  >
-                    <FileText className="h-4 w-4" />
-                    Bulletin
-                  </Button>
-                  <Button 
-                    size="sm"
+                    className="w-full"
+                    variant="outline"
                     onClick={() => handleViewDetails(child)}
                   >
-                    Détails
+                    Voir l'identité complète
                   </Button>
                 </div>
               </CardContent>
@@ -185,32 +135,24 @@ export default function Children() {
         /* LIST View */
         <div className="space-y-2">
           {children.map((child) => (
-            <Card key={child.id} className="shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+            <Card key={child.id} className="shadow-sm hover:shadow-md transition-shadow cursor-pointer" onClick={() => handleViewDetails(child)}>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4 flex-1 min-w-0">
                     <Avatar className="h-12 w-12">
                       <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-                        {child.name.split(' ').map(n => n[0]).join('')}
+                        {child.firstName[0]}{child.lastName[0]}
                       </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0">
-                      <h3 className="font-semibold">{child.name}</h3>
-                      <p className="text-sm text-muted-foreground">{child.class}</p>
+                      <h3 className="font-semibold">{child.firstName} {child.lastName}</h3>
+                      <p className="text-sm text-muted-foreground">{child.class?.name || 'En attente d\'affectation'}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-6 shrink-0">
-                    <div className="text-center">
-                      <p className="text-xs text-muted-foreground">Moyenne</p>
-                      <p className={`text-lg font-bold ${getGradeColor(child.average)}`}>{child.average}/20</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xs text-muted-foreground">Rang</p>
-                      <p className="text-lg font-bold">{child.rank}°/{child.totalStudents}</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xs text-muted-foreground">Paiement</p>
-                      {getPaymentBadge(child.paymentStatus)}
+                    <div className="text-center hidden sm:block">
+                      <p className="text-xs text-muted-foreground">Matricule</p>
+                      <p className="text-sm font-bold">{child.matricule ?? 'Non attribué'}</p>
                     </div>
                     <ChevronRight className="h-5 w-5 text-muted-foreground" />
                   </div>
@@ -223,81 +165,78 @@ export default function Children() {
 
       {/* Child Detail Modal */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[400px]">
           {selectedChild && (
             <>
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-3">
                   <Avatar className="h-12 w-12">
                     <AvatarFallback className="bg-primary/10 text-primary font-semibold text-lg">
-                      {selectedChild.name.split(' ').map(n => n[0]).join('')}
+                      {selectedChild.firstName[0]}{selectedChild.lastName[0]}
                     </AvatarFallback>
                   </Avatar>
                   <div>
-                    <p className="text-lg">{selectedChild.name}</p>
-                    <p className="text-sm text-muted-foreground font-normal">{selectedChild.class}</p>
+                    <p className="text-lg">{selectedChild.firstName} {selectedChild.lastName}</p>
+                    <p className="text-sm text-muted-foreground font-normal">{selectedChild.class?.name || 'Classe non assignée'}</p>
                   </div>
                 </DialogTitle>
                 <DialogDescription>
-                  Informations détaillées de l'enfant
+                  Carte d'identification de l'élève
                 </DialogDescription>
               </DialogHeader>
               
               <div className="space-y-4 py-4">
-                {/* Stats */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="p-4 bg-muted rounded-lg text-center">
-                    <Award className="h-6 w-6 mx-auto mb-2 text-primary" />
-                    <p className="text-2xl font-bold text-success">{selectedChild.average}/20</p>
-                    <p className="text-sm text-muted-foreground">Moyenne générale</p>
-                  </div>
-                  <div className="p-4 bg-muted rounded-lg text-center">
-                    <TrendingUp className="h-6 w-6 mx-auto mb-2 text-primary" />
-                    <p className="text-2xl font-bold">{selectedChild.rank}°/{selectedChild.totalStudents}</p>
-                    <p className="text-sm text-muted-foreground">Classement</p>
-                  </div>
-                </div>
-
-                {/* Additional Info */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                     <div className="flex items-center gap-2">
-                      <Calendar className="h-5 w-5 text-muted-foreground" />
-                      <span className="font-medium">Présence</span>
+                      <Fingerprint className="h-5 w-5 text-muted-foreground" />
+                      <span className="font-medium">Matricule</span>
                     </div>
-                    <span className="font-bold">{selectedChild.attendance}%</span>
+                    <span className="font-bold">{selectedChild.matricule ?? 'Non attribué'}</span>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                     <div className="flex items-center gap-2">
-                      <Wallet className="h-5 w-5 text-muted-foreground" />
-                      <span className="font-medium">Paiement</span>
+                      <User className="h-5 w-5 text-muted-foreground" />
+                      <span className="font-medium">Genre</span>
                     </div>
-                    {getPaymentBadge(selectedChild.paymentStatus)}
+                    <span className="font-bold">
+                      {selectedChild.gender === 'M' || selectedChild.gender === 'male' 
+                        ? 'Masculin' 
+                        : (selectedChild.gender === 'F' || selectedChild.gender === 'female' 
+                          ? 'Féminin' 
+                          : 'Non spécifié')}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <BookOpen className="h-5 w-5 text-muted-foreground" />
+                      <span className="font-medium">Niveau d'étude</span>
+                    </div>
+                    <span className="font-bold">{selectedChild.class?.level ?? 'Non assigné'}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Cake className="h-5 w-5 text-muted-foreground" />
+                      <span className="font-medium">Date de naissance</span>
+                    </div>
+                    <span className="font-bold">{selectedChild.dateOfBirth ? new Date(selectedChild.dateOfBirth).toLocaleDateString('fr-FR') : 'Non renseignée'}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-5 w-5 text-muted-foreground" />
+                      <span className="font-medium">Adresse</span>
+                    </div>
+                    <span className="font-bold text-right truncate max-w-[200px]" title={selectedChild.address || ''}>{selectedChild.address || 'Non renseignée'}</span>
                   </div>
                 </div>
               </div>
 
-              <DialogFooter className="gap-2">
+              <DialogFooter>
                 <Button 
-                  className="flex-1 gap-2"
-                  onClick={() => {
-                    setIsModalOpen(false);
-                    navigate('/children-grades');
-                  }}
+                  className="w-full"
+                  onClick={() => setIsModalOpen(false)}
                 >
-                  <Award className="h-4 w-4" />
-                  Voir les notes
-                </Button>
-                <Button 
-                  variant="outline"
-                  className="flex-1 gap-2"
-                  onClick={() => {
-                    setIsModalOpen(false);
-                    navigate('/children-bulletins');
-                  }}
-                >
-                  <FileText className="h-4 w-4" />
-                  Voir le bulletin
+                  Fermer
                 </Button>
               </DialogFooter>
             </>
@@ -307,4 +246,3 @@ export default function Children() {
     </div>
   );
 }
-

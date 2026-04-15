@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
+import { parentApi } from '@/lib/api-parent';
 import { 
   Dialog,
   DialogContent,
@@ -33,6 +35,11 @@ export default function ParentProfile() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  const { data: profile } = useQuery({
+    queryKey: ['parent', 'profile'],
+    queryFn: parentApi.getProfile,
+  });
+
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
   
@@ -41,8 +48,21 @@ export default function ParentProfile() {
     firstName: user?.firstName || '',
     lastName: user?.lastName || '',
     email: user?.email || '',
-    phone: '+221 77 123 45 67',
+    phone: '',
   });
+
+  // Sync state with dynamic profile data
+  useEffect(() => {
+    if (profile?.user) {
+      setFormData(prev => ({
+        ...prev,
+        firstName: profile.user.firstName,
+        lastName: profile.user.lastName,
+        email: profile.user.email,
+        phone: profile.user.phone || '',
+      }));
+    }
+  }, [profile]);
 
   const handleLogout = () => {
     logout();
@@ -98,9 +118,14 @@ export default function ParentProfile() {
                 <Camera className="h-4 w-4" />
               </Button>
             </div>
-            <h2 className="text-xl font-bold">{user.firstName} {user.lastName}</h2>
-            <p className="text-muted-foreground">{user.email}</p>
-            <Badge variant="secondary" className="mt-2">Parent</Badge>
+            <h2 className="text-xl font-bold">{profile?.user?.firstName || user.firstName} {profile?.user?.lastName || user.lastName}</h2>
+            <p className="text-muted-foreground">{profile?.user?.email || user.email}</p>
+            <div className="flex flex-col items-center gap-1 mt-2">
+              <Badge variant="secondary">Parent</Badge>
+              {profile?.profile?.profession && (
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{profile.profile.profession}</p>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -124,14 +149,14 @@ export default function ParentProfile() {
             <Phone className="h-5 w-5 text-muted-foreground" />
             <div>
               <p className="text-sm text-muted-foreground">Téléphone</p>
-              <p className="font-medium">+221 77 123 45 67</p>
+              <p className="font-medium">{profile?.user?.phone || 'Non renseigné'}</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <Users className="h-5 w-5 text-muted-foreground" />
             <div>
               <p className="text-sm text-muted-foreground">Enfants inscrits</p>
-              <p className="font-medium">2 enfants</p>
+              <p className="font-medium">{profile?.children?.length || 0} enfant(s)</p>
             </div>
           </div>
           <Button 

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useQuery } from '@tanstack/react-query';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -27,103 +28,13 @@ import {
   Grid3X3,
   List,
   Filter,
-  Receipt,
+  Users,
   Banknote,
   Calendar,
-  Users
+  Loader2
 } from 'lucide-react';
-
-// Mock children data
-const children = [
-  { id: '1', name: 'Oumar Fall' },
-  { id: '2', name: 'Aïssatou Fall' },
-];
-
-// Mock payment data
-const mockPayments = [
-  { 
-    id: '1', 
-    childId: '1',
-    title: 'Scolarité - Mars 2025', 
-    amount: 25000, 
-    status: 'pending', 
-    dueDate: '15/03/2025',
-    paymentDate: '',
-    type: 'schooling'
-  },
-  { 
-    id: '2', 
-    childId: '1',
-    title: 'Scolarité - Février 2025', 
-    amount: 25000, 
-    status: 'paid', 
-    dueDate: '15/02/2025',
-    paymentDate: '12/02/2025',
-    type: 'schooling'
-  },
-  { 
-    id: '3', 
-    childId: '1',
-    title: 'Scolarité - Janvier 2025', 
-    amount: 25000, 
-    status: 'paid', 
-    dueDate: '15/01/2025',
-    paymentDate: '10/01/2025',
-    type: 'schooling'
-  },
-  { 
-    id: '4', 
-    childId: '1',
-    title: 'Transport - Trimestre 2', 
-    amount: 15000, 
-    status: 'paid', 
-    dueDate: '01/02/2025',
-    paymentDate: '30/01/2025',
-    type: 'transport'
-  },
-  { 
-    id: '5', 
-    childId: '1',
-    title: 'Cantine - Février 2025', 
-    amount: 12000, 
-    status: 'pending', 
-    dueDate: '28/02/2025',
-    paymentDate: '',
-    type: 'canteen'
-  },
-  { 
-    id: '6', 
-    childId: '1',
-    title: 'Scolarité - Décembre 2024', 
-    amount: 25000, 
-    status: 'paid', 
-    dueDate: '15/12/2024',
-    paymentDate: '10/12/2024',
-    type: 'schooling'
-  },
-  { 
-    id: '7', 
-    childId: '2',
-    title: 'Scolarité - Mars 2025', 
-    amount: 25000, 
-    status: 'paid', 
-    dueDate: '15/03/2025',
-    paymentDate: '10/03/2025',
-    type: 'schooling'
-  },
-  { 
-    id: '8', 
-    childId: '2',
-    title: 'Scolarité - Février 2025', 
-    amount: 25000, 
-    status: 'paid', 
-    dueDate: '15/02/2025',
-    paymentDate: '08/02/2025',
-    type: 'schooling'
-  },
-];
-
-const academicYears = ['2024-2025', '2023-2024'];
+import { parentApi, ParentPayment } from '@/lib/api-parent';
+import { openPrintableWindow, writePrintableDocument } from '@/lib/print';
 
 const getStatusInfo = (status: string) => {
   switch (status) {
@@ -139,11 +50,11 @@ const getStatusInfo = (status: string) => {
         icon: <Clock className="h-5 w-5 text-warning" />,
         badge: <Badge className="bg-warning/20 text-warning">En attente</Badge>
       };
-    case 'overdue':
+    case 'cancelled':
       return { 
-        label: 'En retard', 
+        label: 'Annulé', 
         icon: <AlertCircle className="h-5 w-5 text-destructive" />,
-        badge: <Badge className="bg-destructive/20 text-destructive">En retard</Badge>
+        badge: <Badge className="bg-destructive/20 text-destructive">Annulé</Badge>
       };
     default:
       return { 
@@ -154,12 +65,12 @@ const getStatusInfo = (status: string) => {
   }
 };
 
-const getTypeIcon = (type: string) => {
-  switch (type) {
-    case 'schooling': return <Banknote className="h-5 w-5" />;
-    case 'transport': return <CreditCard className="h-5 w-5" />;
-    case 'canteen': return <Receipt className="h-5 w-5" />;
-    default: return <Wallet className="h-5 w-5" />;
+const getMethodLabel = (method: string) => {
+  switch (method) {
+    case 'cash': return 'Espèces';
+    case 'wave': return 'Wave';
+    case 'orange_money': return 'Orange Money';
+    default: return method;
   }
 };
 
@@ -167,66 +78,209 @@ const formatAmount = (amount: number) => {
   return amount.toLocaleString() + ' CFA';
 };
 
+const escapeHtml = (unsafe: string) => {
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+};
+
 export default function Payments() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedChild, setSelectedChild] = useState('all');
-  const [selectedYear, setSelectedYear] = useState('all');
-  const [selectedPayment, setSelectedPayment] = useState<typeof mockPayments[0] | null>(null);
+  const [selectedPayment, setSelectedPayment] = useState<ParentPayment | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Filter payments
-  const filteredPayments = mockPayments.filter(payment => {
+  const { data: profile } = useQuery({
+    queryKey: ['parent', 'profile'],
+    queryFn: parentApi.getProfile,
+  });
+
+  const { data: payments = [], isLoading } = useQuery({
+    queryKey: ['parent', 'payments'],
+    queryFn: parentApi.getPayments,
+  });
+
+  const childrenOptions = profile?.children || [];
+
+  const filteredPayments = payments.filter(payment => {
     if (selectedChild !== 'all' && payment.childId !== selectedChild) return false;
-    // Year filtering would need proper date parsing in real app
     return true;
   });
 
-  // Calculate stats
   const pendingPayments = filteredPayments.filter(p => p.status === 'pending');
   const paidPayments = filteredPayments.filter(p => p.status === 'paid');
   const totalPending = pendingPayments.reduce((acc, p) => acc + p.amount, 0);
   const totalPaid = paidPayments.reduce((acc, p) => acc + p.amount, 0);
 
-  const handleViewPayment = (payment: typeof mockPayments[0]) => {
+  const handleViewPayment = (payment: ParentPayment) => {
     setSelectedPayment(payment);
     setIsModalOpen(true);
   };
 
-  const handleDownloadReceipt = (payment: typeof mockPayments[0]) => {
-    console.log('Download receipt:', payment.id);
-    alert(`Téléchargement du reçu pour ${payment.title}...`);
+  const handleDownloadReceipt = (payment: ParentPayment) => {
+    const printWindow = openPrintableWindow(`Reçu - ${payment.receiptNumber}`);
+    if (!printWindow) {
+      alert('Veuillez autoriser les fenêtres contextuelles pour imprimer le reçu.');
+      return;
+    }
+
+    const receiptHtml = `
+      <div class="print-page">
+        <div class="minimal-ticket">
+          <div class="ticket-header">
+            <h1>EDUSPHERE</h1>
+            <p>Reçu de paiement</p>
+          </div>
+          
+          <div class="ticket-body">
+            <div class="t-row">
+              <span class="t-label">Reçu N°</span>
+              <span class="t-value">${escapeHtml(payment.receiptNumber)}</span>
+            </div>
+            <div class="t-row">
+              <span class="t-label">Date de paiement</span>
+              <span class="t-value">${escapeHtml(payment.paymentDate || payment.dueDate)}</span>
+            </div>
+            <div class="t-empty"></div>
+            
+            <div class="t-row">
+              <span class="t-label">Élève</span>
+              <strong class="t-value">${escapeHtml(payment.childName)}</strong>
+            </div>
+            <div class="t-row">
+              <span class="t-label">Motif</span>
+              <span class="t-value">${escapeHtml(payment.title)}</span>
+            </div>
+            
+            <div class="t-divider"></div>
+            
+            <div class="t-row t-total">
+              <span class="t-label">Total réglé</span>
+              <span class="t-amount">${formatAmount(payment.amount)}</span>
+            </div>
+            <div class="t-row">
+              <span class="t-label">Moyen de paiement</span>
+              <span class="t-value">${escapeHtml(getMethodLabel(payment.method))}</span>
+            </div>
+          </div>
+          
+          <div class="ticket-footer">
+            <p>Merci de votre confiance.</p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const styles = `
+      @page { margin: 0; }
+      body { background: #fdfdfd; font-family: monospace; color: #111; }
+      .print-page {
+        display: flex;
+        justify-content: center;
+        padding: 40px;
+      }
+      .minimal-ticket {
+        width: 320px;
+        border: 1px dashed #ccc;
+        padding: 24px;
+        background: white;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+      }
+      .ticket-header {
+        text-align: center;
+        margin-bottom: 24px;
+      }
+      .ticket-header h1 {
+        margin: 0 0 5px;
+        font-size: 20px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+      .ticket-header p {
+        margin: 0;
+        color: #666;
+        font-size: 12px;
+        text-transform: uppercase;
+      }
+      .ticket-body {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .t-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        font-size: 14px;
+      }
+      .t-label { color: #666; }
+      .t-value { text-align: right; }
+      .t-empty { height: 10px; }
+      .t-divider {
+        border-bottom: 1px dashed #ccc;
+        margin: 12px 0;
+      }
+      .t-total { align-items: center; margin-top: 8px; }
+      .t-total .t-label { font-size: 16px; font-weight: bold; color: #111; }
+      .t-amount { font-size: 22px; font-weight: bold; }
+      .ticket-footer {
+        margin-top: 32px;
+        text-align: center;
+        font-size: 12px;
+        color: #888;
+      }
+      @media print {
+        body { background: white; }
+        .print-page { padding: 0; }
+        .minimal-ticket { border: none; box-shadow: none; width: 100%; max-width: 400px; margin: 0 auto; }
+      }
+    `;
+
+    writePrintableDocument(printWindow, `Reçu - ${payment.receiptNumber}`, receiptHtml, styles);
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex h-[400px] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
       <div>
         <h1 className="text-xl font-bold tracking-tight">Paiements</h1>
         <p className="text-sm text-muted-foreground">
-          Gérez les paiements de scolarité
+          Gérez les transactions financières liées à vos enfants
         </p>
       </div>
 
-      {/* Child Filter */}
-      <Card className="shadow-sm">
-        <CardContent className="p-4">
-          <div className="flex items-center gap-3">
-            <Users className="h-5 w-5 text-muted-foreground" />
-            <Select value={selectedChild} onValueChange={setSelectedChild}>
-              <SelectTrigger className="flex-1">
-                <SelectValue placeholder="Tous les enfants" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous les enfants</SelectItem>
-                {children.map((child) => (
-                  <SelectItem key={child.id} value={child.id}>
-                    {child.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+      {childrenOptions.length > 0 && (
+        <Card className="shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <Users className="h-5 w-5 text-muted-foreground" />
+              <Select value={selectedChild} onValueChange={setSelectedChild}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Tous les enfants" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les enfants</SelectItem>
+                  {childrenOptions.map((child) => (
+                    <SelectItem key={child.id} value={child.id}>
+                      {child.firstName} {child.lastName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stats Cards */}
       <div className="grid gap-3 md:grid-cols-3">
@@ -241,20 +295,13 @@ export default function Payments() {
                 <Wallet className="h-6 w-6" />
               </div>
             </div>
-            <Button 
-              className="w-full mt-4 bg-white text-primary hover:bg-white/90"
-              disabled={pendingPayments.length === 0}
-            >
-              <CreditCard className="h-4 w-4 mr-2" />
-              Payer maintenant
-            </Button>
           </CardContent>
         </Card>
         <Card className="shadow-sm">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Payé cette année</p>
+                <p className="text-sm text-muted-foreground">Total payé</p>
                 <p className="text-2xl font-bold text-success">{formatAmount(totalPaid)}</p>
               </div>
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-success/10">
@@ -279,35 +326,9 @@ export default function Payments() {
         </Card>
       </div>
 
-      {/* Year Filter */}
-      <Card className="shadow-sm">
-        <CardContent className="p-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center">
-            <div className="flex items-center gap-2 flex-1">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Filtre</span>
-            </div>
-            <Select value={selectedYear} onValueChange={setSelectedYear}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Année académique" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Toutes les années</SelectItem>
-                {academicYears.map((year) => (
-                  <SelectItem key={year} value={year}>
-                    {year}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* View Toggle */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          {filteredPayments.length} paiement{filteredPayments.length !== 1 ? 's' : ''}
+          {filteredPayments.length} transaction{filteredPayments.length !== 1 ? 's' : ''} trouvée{filteredPayments.length !== 1 ? 's' : ''}
         </p>
         <div className="flex gap-1 bg-muted rounded-lg p-1">
           <Button
@@ -327,8 +348,14 @@ export default function Payments() {
         </div>
       </div>
 
-      {/* Payments Grid/List - GRID by default */}
-      {viewMode === 'grid' ? (
+      {filteredPayments.length === 0 ? (
+        <Card className="border-dashed shadow-none">
+          <CardContent className="p-8 text-center text-muted-foreground flex flex-col items-center">
+            <Wallet className="h-10 w-10 mb-3 opacity-20" />
+            <p>Aucun paiement n'est lié à ce filtrage.</p>
+          </CardContent>
+        </Card>
+      ) : viewMode === 'grid' ? (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {filteredPayments.map((payment) => {
             const statusInfo = getStatusInfo(payment.status);
@@ -337,11 +364,12 @@ export default function Payments() {
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                      {getTypeIcon(payment.type)}
+                      <Banknote className="h-5 w-5" />
                     </div>
                     {statusInfo.badge}
                   </div>
-                  <h3 className="font-semibold mb-1">{payment.title}</h3>
+                  <h3 className="font-semibold mb-1 truncate" title={payment.title}>{payment.title}</h3>
+                  <p className="text-xs text-muted-foreground mb-2 truncate">Élève: {payment.childName}</p>
                   <p className="text-lg font-bold mb-3">{formatAmount(payment.amount)}</p>
                   
                   <div className="text-sm text-muted-foreground mb-3">
@@ -353,26 +381,19 @@ export default function Payments() {
                     ) : (
                       <p className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
-                        Échéance: {payment.dueDate}
+                        Date d'émission: {payment.dueDate}
                       </p>
                     )}
                   </div>
                   
-                  {payment.status === 'pending' ? (
-                    <Button 
-                      className="w-full gap-2"
-                    >
-                      <CreditCard className="h-4 w-4" />
-                      Payer
-                    </Button>
-                  ) : (
+                  {payment.status === 'paid' && (
                     <Button 
                       variant="outline" 
                       className="w-full gap-2"
                       onClick={() => handleDownloadReceipt(payment)}
                     >
                       <Download className="h-4 w-4" />
-                      Reçu
+                      Télécharger Reçu
                     </Button>
                   )}
                 </CardContent>
@@ -394,14 +415,14 @@ export default function Payments() {
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 shrink-0">
-                        {getTypeIcon(payment.type)}
+                        <Banknote className="h-5 w-5" />
                       </div>
                       <div className="min-w-0">
-                        <h3 className="font-semibold">{payment.title}</h3>
-                        <p className="text-sm text-muted-foreground">
+                        <h3 className="font-semibold truncate">{payment.title}</h3>
+                        <p className="text-sm text-muted-foreground truncate">
                           {payment.status === 'paid' 
-                            ? `Payé le ${payment.paymentDate}` 
-                            : `Échéance: ${payment.dueDate}`
+                            ? `Élève: ${payment.childName} | Payé le ${payment.paymentDate}` 
+                            : `Élève: ${payment.childName} | Date: ${payment.dueDate}`
                           }
                         </p>
                       </div>
@@ -425,30 +446,31 @@ export default function Payments() {
             <>
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
-                  {getTypeIcon(selectedPayment.type)}
-                  {selectedPayment.title}
+                  <Banknote className="h-5 w-5" />
+                  Informations de facture
                 </DialogTitle>
-                <DialogDescription>
-                  Détails du paiement
-                </DialogDescription>
               </DialogHeader>
               
               <div className="space-y-4 py-4">
                 <div className="p-4 bg-muted rounded-lg">
-                  <p className="text-sm text-muted-foreground">Montant</p>
+                  <p className="text-sm text-muted-foreground">Total exigé</p>
                   <p className="text-2xl font-bold">{formatAmount(selectedPayment.amount)}</p>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-3 p-1">
                   <div className="flex justify-between">
+                    <span className="text-muted-foreground">Concerne</span>
+                    <span className="font-medium truncate max-w-[200px]" title={selectedPayment.childName}>{selectedPayment.childName}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Motif</span>
+                    <span className="font-medium">{selectedPayment.title}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Statut</span>
                     {getStatusInfo(selectedPayment.status).badge}
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Échéance</span>
-                    <span className="font-medium">{selectedPayment.dueDate}</span>
-                  </div>
-                  {selectedPayment.paymentDate && (
+                  {selectedPayment.status === 'paid' && (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Payé le</span>
                       <span className="font-medium">{selectedPayment.paymentDate}</span>
@@ -457,25 +479,20 @@ export default function Payments() {
                 </div>
               </div>
 
-              <DialogFooter className="gap-2">
-                {selectedPayment.status === 'paid' ? (
+              <DialogFooter>
+                {selectedPayment.status === 'paid' && (
                   <Button 
-                    className="gap-2"
+                    className="w-full gap-2"
                     onClick={() => {
                       handleDownloadReceipt(selectedPayment);
                       setIsModalOpen(false);
                     }}
                   >
                     <Download className="h-4 w-4" />
-                    Télécharger reçu
-                  </Button>
-                ) : (
-                  <Button className="gap-2">
-                    <CreditCard className="h-4 w-4" />
-                    Payer maintenant
+                    Télécharger le reçu
                   </Button>
                 )}
-                <Button variant="outline" onClick={() => setIsModalOpen(false)}>
+                <Button variant="outline" className="w-full mt-2 sm:mt-0" onClick={() => setIsModalOpen(false)}>
                   Fermer
                 </Button>
               </DialogFooter>
@@ -486,4 +503,3 @@ export default function Payments() {
     </div>
   );
 }
-

@@ -25,6 +25,9 @@ const levelStatusLabels: Record<Level['status'], string> = {
 type LevelFormState = {
   name: string;
   sortOrder: string;
+  enrollmentFee: string;
+  reEnrollmentFee: string;
+  nextLevelId: string;
   description: string;
   status: Level['status'];
 };
@@ -32,6 +35,9 @@ type LevelFormState = {
 const createDefaultForm = (): LevelFormState => ({
   name: '',
   sortOrder: '0',
+  enrollmentFee: '0',
+  reEnrollmentFee: '0',
+  nextLevelId: '',
   description: '',
   status: 'active',
 });
@@ -152,6 +158,9 @@ export default function Levels() {
     setFormData({
       name: level.name,
       sortOrder: String(level.sortOrder),
+      enrollmentFee: String(level.enrollmentFee ?? 0),
+      reEnrollmentFee: String(level.reEnrollmentFee ?? 0),
+      nextLevelId: level.nextLevelId || '',
       description: level.description || '',
       status: level.status,
     });
@@ -162,6 +171,9 @@ export default function Levels() {
     const payload: CreateLevelPayload = {
       name: formData.name.trim(),
       sortOrder: Math.max(0, Number(formData.sortOrder) || 0),
+      enrollmentFee: Math.max(0, Number(formData.enrollmentFee) || 0),
+      reEnrollmentFee: Math.max(0, Number(formData.reEnrollmentFee) || 0),
+      nextLevelId: formData.nextLevelId === 'none' ? null : (formData.nextLevelId || null),
       description: formData.description.trim() || undefined,
       status: formData.status,
     };
@@ -186,11 +198,20 @@ export default function Levels() {
           </div>
           <div>
             <p className="font-medium">{level.name}</p>
-            <p className="text-xs text-muted-foreground">
-              Ordre {level.sortOrder} · {level.description || 'Aucune description'}
+            <p className="text-xs text-muted-foreground line-clamp-1">
+              {level.description || 'Aucune description'}
             </p>
           </div>
         </div>
+      ),
+    },
+    {
+      key: 'fees',
+      label: 'Frais (Ins. / Ré-ins.)',
+      render: (level) => (
+        <span className="text-sm font-medium">
+          {level.enrollmentFee.toLocaleString()} / {level.reEnrollmentFee.toLocaleString()}
+        </span>
       ),
     },
     {
@@ -263,9 +284,19 @@ export default function Levels() {
           <School className="h-3 w-3" />
           {level.classes.toLocaleString()} classe(s)
         </span>
-        <span className="text-muted-foreground">
-          Ordre d'affichage: {level.sortOrder}
-        </span>
+        <div className="flex flex-col gap-1 pt-1">
+          <p className="text-xs font-medium text-primary">
+            Inscription: {level.enrollmentFee.toLocaleString()} FCFA
+          </p>
+          <p className="text-xs font-medium text-violet-600">
+            Ré-inscription: {level.reEnrollmentFee.toLocaleString()} FCFA
+          </p>
+        </div>
+        {level.nextLevelId && (
+          <p className="text-xs text-muted-foreground pt-1 italic">
+            → Passe vers: {levels.find(l => l.id === level.nextLevelId)?.name ?? '-'}
+          </p>
+        )}
         {level.description && (
           <p className="text-muted-foreground line-clamp-2">{level.description}</p>
         )}
@@ -340,14 +371,51 @@ export default function Levels() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="sortOrder">Ordre d'affichage</Label>
+                  <Label htmlFor="enrollmentFee">Frais d'inscription</Label>
                   <Input
-                    id="sortOrder"
+                    id="enrollmentFee"
                     type="number"
                     min="0"
-                    value={formData.sortOrder}
-                    onChange={(event) => setFormData((current) => ({ ...current, sortOrder: event.target.value }))}
+                    value={formData.enrollmentFee}
+                    onChange={(event) => setFormData((current) => ({ ...current, enrollmentFee: event.target.value }))}
+                    placeholder="Ex: 50000"
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reEnrollmentFee">Frais de ré-inscription</Label>
+                  <Input
+                    id="reEnrollmentFee"
+                    type="number"
+                    min="0"
+                    value={formData.reEnrollmentFee}
+                    onChange={(event) => setFormData((current) => ({ ...current, reEnrollmentFee: event.target.value }))}
+                    placeholder="Ex: 30000"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="nextLevel">Niveau suivant</Label>
+                  <Select
+                    value={formData.nextLevelId}
+                    onValueChange={(value) =>
+                      setFormData((current) => ({ ...current, nextLevelId: value }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Aucun (Fin de cycle)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Aucun (Fin de cycle)</SelectItem>
+                      {levels
+                        .filter((l) => l.id !== selectedLevel?.id)
+                        .map((l) => (
+                          <SelectItem key={l.id} value={l.id}>
+                            {l.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="status">Statut</Label>

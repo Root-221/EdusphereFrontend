@@ -4,7 +4,7 @@ export type EnrollmentType = 'new' | 're_enrollment';
 
 export type EnrollmentStatus = 'draft' | 'pending_payment' | 'paid' | 'confirmed' | 'cancelled';
 
-export type PaymentMethod = 'cash' | 'wave' | 'orange_money' | 'transfer';
+export type PaymentMethod = 'cash' | 'wave' | 'orange_money';
 
 export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';
 
@@ -151,7 +151,6 @@ export const getPaymentMethodLabel = (method: PaymentMethod): string => {
     cash: 'Espèces',
     wave: 'Wave',
     orange_money: 'Orange Money',
-    transfer: 'Virement',
   };
   return labels[method];
 };

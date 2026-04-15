@@ -227,9 +227,15 @@ export default function Timetables() {
   useEffect(() => {
     if (!currentWeekStart && optionsQuery.data) {
       const now = new Date();
+      const day = now.getDay();
+      const diff = now.getDate() - day + (day === 0 ? -6 : 1);
       const startOfWeek = new Date(now);
-      startOfWeek.setDate(now.getDate() - now.getDay() + 1);
-      const startDateStr = startOfWeek.toISOString().split('T')[0];
+      startOfWeek.setDate(diff);
+      
+      const yyyy = startOfWeek.getFullYear();
+      const mm = String(startOfWeek.getMonth() + 1).padStart(2, '0');
+      const dd = String(startOfWeek.getDate()).padStart(2, '0');
+      const startDateStr = `${yyyy}-${mm}-${dd}`;
       setCurrentWeekStart(startDateStr);
     }
   }, [optionsQuery.data, currentWeekStart]);
@@ -1061,7 +1067,18 @@ const deleteEntryMutation = useMutation({
                 datesSet={({ view, start }) => {
                   if (view.type === 'timeGridWeek' || view.type === 'timeGridDay') {
                     const startDate = view.activeStart || start;
-                    const startDateStr = new Date(startDate).toISOString().split('T')[0];
+                    
+                    // Normalize to Monday
+                    const normalizedDate = new Date(startDate);
+                    const day = normalizedDate.getDay();
+                    const diff = normalizedDate.getDate() - day + (day === 0 ? -6 : 1);
+                    normalizedDate.setDate(diff);
+
+                    const yyyy = normalizedDate.getFullYear();
+                    const mm = String(normalizedDate.getMonth() + 1).padStart(2, '0');
+                    const dd = String(normalizedDate.getDate()).padStart(2, '0');
+                    const startDateStr = `${yyyy}-${mm}-${dd}`;
+                    
                     setCurrentWeekStart((prev) => {
                       if (prev !== startDateStr) {
                         return startDateStr;

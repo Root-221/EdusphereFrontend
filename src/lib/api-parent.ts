@@ -7,6 +7,7 @@ export interface ParentProfile {
     firstName: string;
     lastName: string;
     avatar: string | null;
+    phone?: string | null;
   };
   profile: {
     id: string;
@@ -25,14 +26,20 @@ export interface ParentProfile {
       level: string | null;
     } | null;
     matricule: string | null;
+    dateOfBirth: string | null;
+    address: string | null;
   }[];
 }
 
 export interface ChildTimetableEntry {
   id: string;
+  annualTimetableEntryId?: string;
   dayOfWeek: string;
   startTime: string;
   endTime: string;
+  dateStart: string | null;
+  dateEnd: string | null;
+  date?: string;
   subject: {
     id: string;
     name: string;
@@ -62,10 +69,14 @@ export interface ChildTimetable {
   academicYear: {
     id: string;
     name: string;
+    startDate?: string;
+    endDate?: string;
   };
   semester: {
     id: string;
     name: string;
+    startDate?: string;
+    endDate?: string;
   };
   class: {
     id: string;
@@ -75,14 +86,34 @@ export interface ChildTimetable {
   entries: ChildTimetableEntry[];
 }
 
+export interface ParentPayment {
+  id: string;
+  childId: string | null;
+  childName: string;
+  title: string;
+  amount: number;
+  status: string;
+  dueDate: string;
+  paymentDate: string;
+  type: string;
+  receiptNumber: string;
+  method: string;
+}
+
 export const parentApi = {
   getProfile: async (): Promise<ParentProfile> => {
     const response = await api.get('/parent/profile');
     return response.data.data;
   },
 
-  getChildTimetable: async (childId: string): Promise<ChildTimetable> => {
-    const response = await api.get(`/parent/children/${childId}/timetable`);
+  getChildTimetable: async (childId: string, weekStartDate?: string): Promise<ChildTimetable> => {
+    const params = weekStartDate ? `?weekStartDate=${weekStartDate}` : '';
+    const response = await api.get(`/parent/children/${childId}/timetable${params}`);
+    return response.data.data;
+  },
+
+  getPayments: async (): Promise<ParentPayment[]> => {
+    const response = await api.get('/parent/payments');
     return response.data.data;
   },
 };

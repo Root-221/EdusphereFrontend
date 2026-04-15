@@ -75,6 +75,9 @@ export interface FetchLevelsParams {
 export interface CreateLevelPayload {
   name: string;
   sortOrder?: number;
+  enrollmentFee?: number;
+  reEnrollmentFee?: number;
+  nextLevelId?: string | null;
   description?: string;
   status?: Level['status'];
 }

@@ -47,6 +47,9 @@ export interface Level {
   name: string;
   description: string;
   sortOrder: number;
+  enrollmentFee: number;
+  reEnrollmentFee: number;
+  nextLevelId: string | null;
   status: LevelStatus;
   classes: number;
 }

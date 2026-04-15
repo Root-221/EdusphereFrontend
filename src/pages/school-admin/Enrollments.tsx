@@ -25,6 +25,7 @@ import {
   Users,
   Wallet,
   CheckCircle,
+  Loader2,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getApiErrorMessage } from '@/lib/api-errors';
@@ -302,6 +303,9 @@ export default function Enrollments() {
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [selectedEnrollment, setSelectedEnrollment] = useState<Enrollment | null>(null);
 
+  const [isPaymentSimulationOpen, setIsPaymentSimulationOpen] = useState(false);
+  const [simulationStatus, setSimulationStatus] = useState<'idle' | 'waiting' | 'success'>('idle');
+
   const [isPeriodDialogOpen, setIsPeriodDialogOpen] = useState(false);
   const [periodMode, setPeriodMode] = useState<'create' | 'edit'>('create');
   const [editingPeriodId, setEditingPeriodId] = useState<string | null>(null);
@@ -326,21 +330,21 @@ export default function Enrollments() {
     retry: false,
   });
 
-  const periodsQuery = useQuery({
+  const periodsQuery = useQuery<EnrollmentPeriod[]>({
     queryKey: ['school-admin', 'periods'],
-    queryFn: enrollmentsApi.fetchPeriods,
+    queryFn: () => enrollmentsApi.fetchPeriods(),
     retry: false,
   });
 
-  const activePeriodsQuery = useQuery({
+  const activePeriodsQuery = useQuery<EnrollmentPeriod[]>({
     queryKey: ['school-admin', 'periods', 'active'],
-    queryFn: enrollmentsApi.fetchActivePeriods,
+    queryFn: () => enrollmentsApi.fetchActivePeriods(),
     retry: false,
   });
 
-  const enrollmentsQuery = useQuery({
+  const enrollmentsQuery = useQuery<Enrollment[]>({
     queryKey: ['school-admin', 'enrollments'],
-    queryFn: enrollmentsApi.fetchEnrollments,
+    queryFn: () => enrollmentsApi.fetchEnrollments(),
     retry: false,
   });
 
@@ -485,6 +489,19 @@ export default function Enrollments() {
     }
   }, [activePeriods, enrollmentMode, isWizardOpen, selectedPeriodId]);
 
+  useEffect(() => {
+    if (!isWizardOpen || !selectedLevelId) return;
+    
+    const level = levelById.get(selectedLevelId);
+    if (level) {
+      const fee = enrollmentMode === 'new' ? level.enrollmentFee : level.reEnrollmentFee;
+      setEnrollmentForm((current) => ({
+        ...current,
+        paymentAmount: String(fee),
+      }));
+    }
+  }, [selectedLevelId, enrollmentMode, isWizardOpen, levelById]);
+
   const invalidateAll = () => {
     void queryClient.invalidateQueries({ queryKey: ['school-admin', 'enrollments'] });
     void queryClient.invalidateQueries({ queryKey: ['school-admin', 'students'] });
@@ -588,7 +605,7 @@ export default function Enrollments() {
       setCurrentStep(2);
       toast({
         title: 'Élève trouvé',
-        description: `${student.firstName} ${student.name} a été chargé depuis le matricule ${student.matricule ?? matricule}.`,
+        description: `${student.firstName} ${student.name} a été chargé depuis le matricule ${student.matricule ?? lookupMatricule}.`,
       });
     },
     onError: (error) => {
@@ -1012,86 +1029,46 @@ export default function Enrollments() {
 
     const receiptHtml = `
       <div class="print-page">
-        <div class="print-shell">
-          <div class="print-header">
-            <div class="brand-row">
-              <div class="brand-logo">${escapeHtml(schoolName.slice(0, 2).toUpperCase())}</div>
-              <div>
-                <div class="section-title">${escapeHtml(schoolName)}</div>
-                <div class="muted">Reçu d'inscription</div>
-              </div>
-            </div>
-            <div class="print-badge">${getEnrollmentStatusLabel(enrollment.status)}</div>
+        <div class="minimal-ticket">
+          <div class="ticket-header">
+            <h1>${escapeHtml(schoolName)}</h1>
+            <p>Reçu de paiement</p>
           </div>
-
-          <div class="print-receipt">
-            <div class="receipt-grid">
-              <div class="info-box">
-                <div class="info-label">Reçu N°</div>
-                <div class="info-value">${escapeHtml(enrollment.receiptNumber ?? enrollment.enrollmentNumber)}</div>
-              </div>
-              <div class="info-box">
-                <div class="info-label">Date</div>
-                <div class="info-value">${formatDate(enrollment.createdAt)}</div>
-              </div>
+          
+          <div class="ticket-body">
+            <div class="t-row">
+              <span class="t-label">Reçu N°</span>
+              <span class="t-value">${escapeHtml(enrollment.receiptNumber ?? enrollment.enrollmentNumber)}</span>
             </div>
-
-            <div class="divider"></div>
-
-            <div class="info-box">
-              <div class="info-label">Élève</div>
-              <div class="info-value" style="font-size: 18px;">${escapeHtml(fullName)}</div>
+            <div class="t-row">
+              <span class="t-label">Date</span>
+              <span class="t-value">${formatDate(enrollment.createdAt)}</span>
             </div>
-            <div class="info-box">
-              <div class="info-label">Matricule</div>
-              <div class="info-value">${escapeHtml(enrollment.matricule ?? enrollment.studentInfo.matricule ?? 'Non attribué')}</div>
+            <div class="t-empty"></div>
+            
+            <div class="t-row">
+              <span class="t-label">Élève</span>
+              <strong class="t-value">${escapeHtml(fullName)}</strong>
             </div>
-
-            <div class="divider"></div>
-
-            <div class="info-box">
-              <div class="info-label">Classe</div>
-              <div class="info-value">${escapeHtml(className)}</div>
+            <div class="t-row">
+              <span class="t-label">Classe</span>
+              <span class="t-value">${escapeHtml(className)}</span>
             </div>
-            <div class="info-box">
-              <div class="info-label">Période</div>
-              <div class="info-value">${escapeHtml(periodName)}</div>
+            
+            <div class="t-divider"></div>
+            
+            <div class="t-row t-total">
+              <span class="t-label">Total réglé</span>
+              <span class="t-amount">${formatAmount(enrollment.payment.amount)}</span>
             </div>
-            <div class="info-box">
-              <div class="info-label">Année scolaire</div>
-              <div class="info-value">${escapeHtml(enrollment.academicYear)}</div>
+            <div class="t-row">
+              <span class="t-label">Moyen de paiement</span>
+              <span class="t-value">${getPaymentMethodLabel(enrollment.payment.method)}</span>
             </div>
-
-            <div class="divider"></div>
-
-            <div class="info-box">
-              <div class="info-label">Parent / Tuteur</div>
-              <div class="info-value">${escapeHtml(parentFullName)}</div>
-            </div>
-            <div class="info-box">
-              <div class="info-label">Téléphone</div>
-              <div class="info-value">${escapeHtml(enrollment.parentInfo.phone ?? 'Non renseigné')}</div>
-            </div>
-
-            <div class="divider"></div>
-
-            <div class="receipt-summary">
-              <div class="info-label">Montant payé</div>
-              <div class="receipt-total">${formatAmount(enrollment.payment.amount)}</div>
-              <div class="info-label" style="margin-top: 8px;">Mode de paiement</div>
-              <div class="info-value">${getPaymentMethodLabel(enrollment.payment.method)}</div>
-            </div>
-
-            <div class="receipt-footer">
-              <div class="signature">
-                <div class="line"></div>
-                <div>Signature</div>
-              </div>
-              <div class="signature">
-                <div class="line"></div>
-                <div>Cachet</div>
-              </div>
-            </div>
+          </div>
+          
+          <div class="ticket-footer">
+            <p>Merci de votre confiance.</p>
           </div>
         </div>
       </div>
@@ -1102,143 +1079,67 @@ export default function Enrollments() {
   };
 
   const buildPrintTheme = (accent: string, secondary: string) => `
-    :root {
-      --print-accent: ${accent};
-      --print-secondary: ${secondary};
-    }
+    @page { margin: 0; }
+    body { background: #fdfdfd; font-family: monospace; color: #111; }
     .print-page {
-      width: 100%;
-      min-height: calc(100vh - 24mm);
       display: flex;
       justify-content: center;
-      padding: 0;
+      padding: 40px;
     }
-    .print-shell {
-      width: 100%;
-      max-width: 700px;
-      margin: 0 auto;
+    .minimal-ticket {
+      width: 320px;
+      border: 1px dashed #ccc;
+      padding: 24px;
+      background: white;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.02);
     }
-    .print-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      margin-bottom: 20px;
+    .ticket-header {
+      text-align: center;
+      margin-bottom: 24px;
     }
-    .print-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      border-radius: 999px;
-      background: color-mix(in srgb, var(--print-accent) 10%, white);
-      color: var(--print-accent);
-      font-weight: 700;
-      font-size: 12px;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-    }
-    .print-receipt {
-      border: 1px solid #dbe3ee;
-      border-radius: 24px;
-      overflow: hidden;
-      box-shadow: 0 18px 60px rgba(15, 23, 42, 0.08);
-      background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-      padding: 28px;
-    }
-    .section-title {
-      margin: 0 0 6px;
-      font-size: 14px;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--print-accent);
-    }
-    .muted {
-      color: #64748b;
-    }
-    .brand-row {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-    }
-    .brand-logo {
-      width: 56px;
-      height: 56px;
-      border-radius: 16px;
-      overflow: hidden;
-      background: color-mix(in srgb, var(--print-accent) 12%, white);
-      border: 1px solid color-mix(in srgb, var(--print-accent) 20%, white);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 800;
-      color: var(--print-accent);
+    .ticket-header h1 {
+      margin: 0 0 5px;
       font-size: 20px;
-    }
-    .receipt-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 18px;
-    }
-    .info-box {
-      border: 1px solid #e2e8f0;
-      border-radius: 18px;
-      padding: 14px 16px;
-      background: rgba(255, 255, 255, 0.75);
-    }
-    .info-label {
-      font-size: 11px;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: #64748b;
-      margin-bottom: 4px;
+      letter-spacing: 1px;
     }
-    .info-value {
-      font-size: 14px;
-      font-weight: 700;
-      color: #0f172a;
-      line-height: 1.35;
+    .ticket-header p {
+      margin: 0;
+      color: #666;
+      font-size: 12px;
+      text-transform: uppercase;
     }
-    .divider {
-      height: 1px;
-      background: linear-gradient(90deg, transparent, #cbd5e1, transparent);
-      margin: 16px 0;
+    .ticket-body {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
     }
-    .receipt-summary {
-      border: 1px solid #dbe3ee;
-      border-radius: 20px;
-      padding: 18px;
-      background: linear-gradient(180deg, rgba(255,255,255,.9), rgba(248,250,252,.9));
-      text-align: center;
-    }
-    .receipt-total {
-      font-size: 32px;
-      font-weight: 900;
-      color: var(--print-accent);
-      line-height: 1;
-    }
-    .receipt-footer {
-      margin-top: 30px;
+    .t-row {
       display: flex;
       justify-content: space-between;
-      gap: 16px;
-      align-items: end;
+      align-items: baseline;
+      font-size: 14px;
     }
-    .signature {
-      min-width: 150px;
+    .t-label { color: #666; }
+    .t-value { text-align: right; }
+    .t-empty { height: 10px; }
+    .t-divider {
+      border-bottom: 1px dashed #ccc;
+      margin: 12px 0;
+    }
+    .t-total { align-items: center; margin-top: 8px; }
+    .t-total .t-label { font-size: 16px; font-weight: bold; color: #111; }
+    .t-amount { font-size: 22px; font-weight: bold; }
+    .ticket-footer {
+      margin-top: 32px;
       text-align: center;
-      color: #64748b;
       font-size: 12px;
-    }
-    .signature .line {
-      height: 1px;
-      background: #94a3b8;
-      margin: 24px 0 8px;
+      color: #888;
     }
     @media print {
       body { background: white; }
-      .print-header { margin-bottom: 16px; }
+      .print-page { padding: 0; }
+      .minimal-ticket { border: none; box-shadow: none; width: 100%; max-width: 400px; margin: 0 auto; }
     }
   `;
 
@@ -1307,7 +1208,25 @@ export default function Enrollments() {
       return;
     }
 
-    submitEnrollmentMutation.mutate();
+    if (enrollmentForm.paymentMethod === 'wave' || enrollmentForm.paymentMethod === 'orange_money') {
+      setIsPaymentSimulationOpen(true);
+      setSimulationStatus('waiting');
+      
+      // Simulate reading user's phone code input (4 seconds)
+      setTimeout(() => {
+        setSimulationStatus('success');
+        
+        // After success, wait 1 second before actually closing and confirming
+        setTimeout(() => {
+          setIsPaymentSimulationOpen(false);
+          setSimulationStatus('idle');
+          submitEnrollmentMutation.mutate();
+        }, 1500);
+      }, 4000);
+    } else {
+      // Cash payment
+      submitEnrollmentMutation.mutate();
+    }
   };
 
   const handleToggleActivePeriod = (periodId: string) => {
@@ -1990,23 +1909,25 @@ export default function Enrollments() {
                             <SelectItem value="cash">Espèces</SelectItem>
                             <SelectItem value="wave">Wave</SelectItem>
                             <SelectItem value="orange_money">Orange Money</SelectItem>
-                            <SelectItem value="transfer">Virement</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="paymentAmount">Montant payé</Label>
-                        <Input
-                          id="paymentAmount"
-                          type="number"
-                          min="0"
-                          step="1"
-                          value={enrollmentForm.paymentAmount}
-                          onChange={(event) =>
-                            setEnrollmentForm((current) => ({ ...current, paymentAmount: event.target.value }))
-                          }
-                          placeholder="0"
-                        />
+                        <Label htmlFor="paymentAmount">Montant total (Automatique)</Label>
+                        <div className="relative">
+                          <Input
+                            id="paymentAmount"
+                            className="bg-muted pl-4 font-bold text-lg"
+                            value={Number(enrollmentForm.paymentAmount).toLocaleString()}
+                            readOnly
+                          />
+                          <div className="absolute right-4 top-1/2 -translate-y-1/2 font-medium text-muted-foreground uppercase text-xs">
+                            FCFA
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground italic leading-tight">
+                          Le montant est pré-configuré pour le niveau {currentLevel?.name || 'sélectionné'}.
+                        </p>
                       </div>
                     </div>
                     <div className="space-y-2">
@@ -2372,6 +2293,45 @@ export default function Enrollments() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Payment Simulation Modal */}
+      <Dialog open={isPaymentSimulationOpen} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md [&>button]:hidden text-center justify-center p-8">
+          <DialogHeader>
+            <DialogTitle className="text-center text-xl">
+              Paiement via {enrollmentForm.paymentMethod === 'wave' ? 'Wave' : 'Orange Money'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center justify-center space-y-6 py-6">
+            {simulationStatus === 'waiting' && (
+              <>
+                <div className="flex h-24 w-24 items-center justify-center rounded-full bg-primary/10">
+                  <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                </div>
+                <div className="space-y-2">
+                  <p className="text-lg font-medium">Demande envoyée...</p>
+                  <p className="text-sm text-muted-foreground max-w-[280px]">
+                    En attente de la validation du client sur son téléphone. Veuillez patienter.
+                  </p>
+                </div>
+              </>
+            )}
+            {simulationStatus === 'success' && (
+              <>
+                <div className="flex h-24 w-24 items-center justify-center rounded-full bg-green-100">
+                  <CheckCircle className="h-12 w-12 text-green-600 animate-in zoom-in duration-300" />
+                </div>
+                <div className="space-y-2">
+                  <p className="text-lg font-medium text-green-600">Paiement validé !</p>
+                  <p className="text-sm text-muted-foreground">
+                    Le reçu et l'inscription vont être générés.
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
