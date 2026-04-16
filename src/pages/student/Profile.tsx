@@ -26,9 +26,14 @@ import {
   Camera,
   Upload,
   BookOpen,
-  Clock
+  Clock,
+  Scan,
+  Loader2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import QRCode from 'react-qr-code';
+import { attendanceApi } from '@/services/attendance';
+import { useQuery } from '@tanstack/react-query';
 
 // Mock additional student data
 const mockStudentInfo = {
@@ -45,6 +50,8 @@ const mockStudentInfo = {
 
 export default function StudentProfile() {
   const { user, logout } = useAuth();
+  
+
   const navigate = useNavigate();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -132,10 +139,14 @@ export default function StudentProfile() {
             </div>
             <h2 className="text-2xl font-bold">{user.firstName} {user.lastName}</h2>
             <p className="text-muted-foreground">{user.email}</p>
-            <Badge variant="secondary" className="mt-2">Élève</Badge>
+            <div className="flex gap-2 mt-2">
+              <Badge variant="secondary">Élève</Badge>
+              {user.isClassLeader && <Badge className="bg-amber-500 hover:bg-amber-600">Délégué de classe</Badge>}
+            </div>
           </div>
         </CardContent>
       </Card>
+
 
       {/* Information Cards */}
       <div className="grid gap-4 md:grid-cols-2">
@@ -251,6 +262,16 @@ export default function StudentProfile() {
       {/* Actions */}
       <Card className="shadow-sm">
         <CardContent className="p-4 space-y-3">
+          {user.isClassLeader && (
+            <Button 
+              variant="secondary" 
+              className="w-full gap-2"
+              onClick={() => navigate('/teacher-attendance')}
+            >
+              <Scan className="h-4 w-4" />
+              Ouvrir l'appel de classe
+            </Button>
+          )}
           <Button 
             variant="outline" 
             className="w-full gap-2" 
@@ -342,4 +363,3 @@ export default function StudentProfile() {
     </div>
   );
 }
-

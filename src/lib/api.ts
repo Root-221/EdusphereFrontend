@@ -53,7 +53,11 @@ const refreshSession = async (): Promise<SessionTokens> => {
   );
 
   const { accessToken, refreshToken: newRefreshToken, user } = response.data.data;
-  saveSessionTokens({ accessToken, refreshToken: newRefreshToken }, user.role);
+  saveSessionTokens(
+    { accessToken, refreshToken: newRefreshToken },
+    user.role,
+    user.schoolSlug ?? undefined,
+  );
 
   return { accessToken, refreshToken: newRefreshToken };
 };

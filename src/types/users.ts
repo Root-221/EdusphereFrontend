@@ -60,6 +60,7 @@ export interface Student {
   parentEmail?: string;
   parentUserId?: string;
   academicYearId: string;
+  isClassLeader?: boolean;
   dateOfBirth: string;
   gender: string;
   address: string;

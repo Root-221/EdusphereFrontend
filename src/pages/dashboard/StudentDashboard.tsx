@@ -12,6 +12,7 @@ import {
   Clock,
   QrCode as QrCodeIcon,
   Loader2,
+  Scan,
   School,
   FileText,
   GraduationCap,
@@ -133,12 +134,12 @@ export default function StudentDashboard() {
         </div>
         
         {/* QR Code Card */}
-        <Card className="shadow-lg bg-white">
+        <Card className="shadow-lg bg-white shrink-0 mt-2 md:mt-0">
           <CardContent className="p-3">
             <div className="flex flex-col items-center gap-2">
-              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                <QrCodeIcon className="h-3 w-3" />
-                <span>Mon Code</span>
+              <div className="flex items-center gap-1 text-xs font-semibold text-primary">
+                <QrCodeIcon className="h-4 w-4" />
+                <span>QR Code Badge</span>
               </div>
               <div className="bg-white p-2 rounded-lg border-2 border-primary/20">
                 <QRCode 
@@ -148,8 +149,8 @@ export default function StudentDashboard() {
                   viewBox={`0 0 100 100`}
                 />
               </div>
-              <p className="text-xs font-medium text-primary">
-                {profile.profile.matricule || `${user?.firstName} ${user?.lastName?.[0]}.`}
+              <p className="text-[10px] font-medium text-center text-primary/80 max-w-[120px] leading-tight">
+                {qrCodeValue}
               </p>
             </div>
           </CardContent>

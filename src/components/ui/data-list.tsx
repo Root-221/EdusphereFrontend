@@ -27,7 +27,7 @@ interface DataListProps<T> {
   columns: Column<T>[];
   searchKey?: string;
   searchPlaceholder?: string;
-  filterOptions?: { key: string; label: string; options: { value: string; label: string }[] }[];
+  filterOptions?: { key: string; label: string; options: { value: string; label: string }[]; disableAll?: boolean; defaultValue?: string }[];
   defaultView?: 'list' | 'grid';
   gridItem?: (item: T) => React.ReactNode;
   emptyMessage?: string;
@@ -47,7 +47,13 @@ export function DataList<T extends { id: string | number }>({
 }: DataListProps<T>) {
   const [search, setSearch] = useState('');
   const [view, setView] = useState<'list' | 'grid'>(defaultView);
-  const [filters, setFilters] = useState<Record<string, string>>({});
+  const [filters, setFilters] = useState<Record<string, string>>(() => {
+    const defaultFilters: Record<string, string> = {};
+    filterOptions?.forEach(f => {
+      if (f.defaultValue) defaultFilters[f.key] = f.defaultValue;
+    });
+    return defaultFilters;
+  });
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [page, setPage] = useState(1);
@@ -99,7 +105,11 @@ export function DataList<T extends { id: string | number }>({
 
   const resetFilters = () => {
     setSearch('');
-    setFilters({});
+    const defaultFilters: Record<string, string> = {};
+    filterOptions?.forEach(f => {
+      if (f.defaultValue) defaultFilters[f.key] = f.defaultValue;
+    });
+    setFilters(defaultFilters);
     setPage(1);
   };
 
@@ -151,7 +161,7 @@ export function DataList<T extends { id: string | number }>({
                 <SelectValue placeholder={filter.label} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tous</SelectItem>
+                {!filter.disableAll && <SelectItem value="all">Tous</SelectItem>}
                 {filter.options.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
@@ -161,7 +171,7 @@ export function DataList<T extends { id: string | number }>({
             </Select>
           ))}
 
-          {(search || Object.values(filters).some(v => v && v !== 'all')) && (
+          {(search || filterOptions?.some(f => filters[f.key] !== (f.defaultValue || 'all'))) && (
             <Button variant="ghost" size="sm" onClick={resetFilters}>
               Réinitialiser
             </Button>

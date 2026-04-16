@@ -8,7 +8,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { PasswordChangeDialog } from "@/components/auth/PasswordChangeDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { MobileLayout } from "./app/layouts/MobileLayout";
-import { navigationByRole, mobileNavItems } from "./app/navigation";
+import { navigationByRole, getMobileNavItems } from "./app/navigation";
 import { UserRole } from "./types/auth";
 import { Loader2 } from "lucide-react";
 
@@ -120,7 +120,7 @@ function MobileRoute({ children }: { children: React.ReactNode }) {
 
   if (!user) return <Navigate to="/login" replace />;
 
-  const items = mobileNavItems[user.role] || [];
+  const items = getMobileNavItems(user);
   
   return (
     <MobileLayout items={items}>
@@ -139,7 +139,7 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
   const isMobileUser = user.role === 'student' || user.role === 'parent';
   
   if (isMobileUser) {
-    const items = mobileNavItems[user.role] || [];
+    const items = getMobileNavItems(user);
     return <MobileLayout items={items}>{children}</MobileLayout>;
   }
   
@@ -304,8 +304,8 @@ const App = () => (
                 </RoleBasedRoute>
               } />
               <Route path="/teacher-attendance" element={
-                <RoleBasedRoute allowedRoles={['teacher']}>
-                  <AppLayout><TeacherAttendance /></AppLayout>
+                <RoleBasedRoute allowedRoles={['teacher', 'student']}>
+                  <DashboardLayout><TeacherAttendance /></DashboardLayout>
                 </RoleBasedRoute>
               } />
               <Route path="/evaluations" element={

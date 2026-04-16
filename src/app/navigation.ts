@@ -221,22 +221,27 @@ export const navigationByRole: Record<UserRole, NavGroup[]> = {
 };
 
 // Mobile navigation items (simplified bottom nav)
-export const mobileNavItems: Record<UserRole, { label: string; icon: React.ComponentType<{ className?: string }>; href: string }[]> = {
-  student: [
-    { label: 'Accueil', icon: Home, href: '/dashboard' },
-    { label: 'EDT', icon: CalendarDays, href: '/timetable' },
-    { label: 'Infos', icon: Bell, href: '/notifications' },
-    { label: 'Profil', icon: User, href: '/profile' },
-  ],
-  parent: [
-    { label: 'Accueil', icon: Home, href: '/dashboard' },
-    { label: 'Enfants', icon: Users2, href: '/children' },
-    { label: 'EDT', icon: CalendarDays, href: '/children-timetable' },
-    { label: 'Paiements', icon: CreditCard, href: '/payments' },
-    { label: 'Profil', icon: User, href: '/parent-profile' },
-  ],
-  super_admin: [],
-  school_admin: [],
-  teacher: [],
-  accountant: [],
+export const getMobileNavItems = (user: { role: UserRole; isClassLeader?: boolean }): { label: string; icon: React.ComponentType<{ className?: string }>; href: string }[] => {
+  const items: Record<UserRole, { label: string; icon: React.ComponentType<{ className?: string }>; href: string }[]> = {
+    student: [
+      { label: 'Accueil', icon: Home, href: '/dashboard' },
+      { label: 'EDT', icon: CalendarDays, href: '/timetable' },
+      ...(user.isClassLeader ? [{ label: 'Appel', icon: ClipboardCheck, href: '/teacher-attendance' }] : []),
+      { label: 'Infos', icon: Bell, href: '/notifications' },
+      { label: 'Profil', icon: User, href: '/profile' },
+    ],
+    parent: [
+      { label: 'Accueil', icon: Home, href: '/dashboard' },
+      { label: 'Enfants', icon: Users2, href: '/children' },
+      { label: 'EDT', icon: CalendarDays, href: '/children-timetable' },
+      { label: 'Paiements', icon: CreditCard, href: '/payments' },
+      { label: 'Profil', icon: User, href: '/parent-profile' },
+    ],
+    super_admin: [],
+    school_admin: [],
+    teacher: [],
+    accountant: [],
+  };
+
+  return items[user.role] || [];
 };

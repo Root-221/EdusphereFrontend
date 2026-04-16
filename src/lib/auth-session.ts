@@ -29,6 +29,8 @@ export const saveSessionTokens = (tokens: SessionTokens, role: string, schoolSlu
   localStorage.setItem(STORAGE_KEYS.userRole, role.toLowerCase());
   if (schoolSlug) {
     localStorage.setItem(STORAGE_KEYS.schoolSlug, schoolSlug);
+  } else {
+    localStorage.removeItem(STORAGE_KEYS.schoolSlug);
   }
 };
 
@@ -49,10 +51,11 @@ export const getTenantSlugFromHostname = (hostname?: string): string | null => {
 export const buildTenantHeaders = (): Record<string, string> => {
   if (typeof window === 'undefined') return {};
   
-  const storedSlug = getStoredSchoolSlug();
   const hostnameSlug = getTenantSlugFromHostname();
+  const hasStoredSession = Boolean(getStoredAccessToken() || getStoredRefreshToken());
+  const storedSlug = hasStoredSession ? getStoredSchoolSlug() : null;
   
-  const slug = storedSlug || hostnameSlug;
+  const slug = hostnameSlug || storedSlug;
   return slug ? { 'X-Tenant-Slug': slug } : {};
 };
 

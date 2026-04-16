@@ -14,6 +14,7 @@ import {
 
 type BackendUser = Pick<User, 'id' | 'email' | 'firstName' | 'lastName' | 'avatar' | 'schoolId' | 'schoolName' | 'mustChangePassword'> & {
   role?: string;
+  isClassLeader?: boolean;
 };
 
 const backendRoleMap: Record<string, UserRole> = {
@@ -44,6 +45,7 @@ const buildFrontendUser = (backendUser: BackendUser): User => ({
   schoolName: backendUser.schoolName,
   schoolSlug: (backendUser as any).schoolSlug,
   mustChangePassword: Boolean(backendUser.mustChangePassword),
+  isClassLeader: Boolean(backendUser.isClassLeader),
 });
 
 interface AuthContextType extends AuthState {

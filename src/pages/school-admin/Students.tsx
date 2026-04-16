@@ -2,8 +2,9 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { renderToStaticMarkup } from 'react-dom/server';
 import QRCode from 'react-qr-code';
-import { BookOpen, Edit, Mail, Plus, Printer, School, Trash2, TrendingUp, User } from 'lucide-react';
+import { BookOpen, Edit, Mail, Plus, Printer, School as SchoolIcon, Trash2, TrendingUp, User, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { attendanceApi } from '@/services/attendance';
 import { useToast } from '@/hooks/use-toast';
 import { academicApi } from '@/services/academic';
 
@@ -500,6 +501,24 @@ export default function Students() {
     },
   });
 
+  const promoteLeaderMutation = useMutation({
+    mutationFn: (studentId: string) => attendanceApi.toggleClassLeader(studentId),
+    onSuccess: (data) => {
+      toast({
+        title: data.isClassLeader ? 'Délégué nommé' : 'Status révoqué',
+        description: data.message,
+      });
+      invalidateAll();
+    },
+    onError: (error) => {
+      toast({
+        title: 'Erreur',
+        description: getApiErrorMessage(error, 'Impossible de changer le statut de délégué.'),
+        variant: 'destructive',
+      });
+    },
+  });
+
   const openCreateDialog = () => {
     setSelectedStudent(null);
     setFormData({
@@ -597,6 +616,11 @@ export default function Students() {
               {student.firstName} {student.name}
             </p>
             <p className="text-xs text-muted-foreground">{student.email}</p>
+            {student.isClassLeader && (
+              <Badge className="mt-1 bg-amber-500 hover:bg-amber-600 border-0 h-4 text-[10px] px-1">
+                Délégué
+              </Badge>
+            )}
           </div>
         </div>
       ),
@@ -631,6 +655,16 @@ export default function Students() {
             <BookOpen className="h-3 w-3" />
             Dossier
           </Button>
+          <Button 
+            variant={student.isClassLeader ? "default" : "outline"} 
+            size="sm" 
+            className={`gap-1 ${student.isClassLeader ? "bg-amber-500 hover:bg-amber-600 text-white" : ""}`}
+            onClick={() => promoteLeaderMutation.mutate(student.id)}
+            disabled={promoteLeaderMutation.isPending}
+          >
+            {student.isClassLeader ? <ShieldAlert className="h-3 w-3" /> : <ShieldCheck className="h-3 w-3" />}
+            {student.isClassLeader ? 'Révoquer' : 'Délégué'}
+          </Button>
           <Button variant="outline" size="sm" className="gap-1" onClick={() => openEditDialog(student)}>
             <Edit className="h-3 w-3" />
             Modifier
@@ -656,6 +690,8 @@ export default function Students() {
       key: 'classId',
       label: 'Classe',
       options: classes.map((schoolClass: SchoolClass) => ({ value: schoolClass.id, label: schoolClass.name })),
+      disableAll: true,
+      defaultValue: classes.length > 0 ? classes[0].id : undefined,
     },
   ];
 
@@ -689,7 +725,7 @@ export default function Students() {
           {student.email}
         </span>
         <span className="flex items-center gap-2 text-muted-foreground">
-          <School className="h-3 w-3" />
+          <SchoolIcon className="h-3 w-3" />
           {student.class || 'Classe non définie'}
         </span>
         <span className="flex items-center gap-2 text-muted-foreground">
@@ -702,10 +738,20 @@ export default function Students() {
         </span>
       </div>
       <div className="grid gap-2 pt-2">
-      <div>
-          <Button variant="outline" size="sm" className="w-full gap-1" onClick={() => openCardDialog(student)}>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" className="w-full gap-1 flex-1" onClick={() => openCardDialog(student)}>
             <BookOpen className="h-3 w-3" />
-            Dossier / Carte
+            Dossier
+          </Button>
+          <Button 
+            variant={student.isClassLeader ? "default" : "outline"} 
+            size="sm" 
+            className={`gap-1 flex-1 ${student.isClassLeader ? "bg-amber-500 hover:bg-amber-600 text-white" : ""}`}
+            onClick={() => promoteLeaderMutation.mutate(student.id)}
+            disabled={promoteLeaderMutation.isPending}
+          >
+            {student.isClassLeader ? <ShieldAlert className="h-3 w-3" /> : <ShieldCheck className="h-3 w-3" />}
+            {student.isClassLeader ? 'Révoquer' : 'Délégué'}
           </Button>
         </div>
         <div className="flex gap-2">
