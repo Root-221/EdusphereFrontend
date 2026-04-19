@@ -44,6 +44,13 @@ export const clearSessionTokens = () => {
 export const getTenantSlugFromHostname = (hostname?: string): string | null => {
   const sourceHostname =
     hostname ?? (typeof window !== 'undefined' ? window.location.hostname : '');
+
+  // Vérifie si nous nous trouvons exactement sur le domaine central (ex: edusphere.vercel.app)
+  const centralDomain = import.meta.env.VITE_CENTRAL_DOMAIN;
+  if (centralDomain && sourceHostname === centralDomain) {
+    return null; // Pas de slug, on est sur la plateforme Super Admin
+  }
+
   const slugMatch = sourceHostname.match(/^([a-z0-9-]+)\./);
   return slugMatch?.[1] ?? null;
 };
